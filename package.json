@@ -1,0 +1,30 @@
+{
+  "name": "trustless-bridge-client",
+  "version": "0.1.0",
+  "description": "A p2p client for managing trustless bridges of EVM blockchains",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GridPlus/trustless-bridge-client.git"
+  },
+  "keywords": [
+    "Ethereum",
+    "bridge",
+    "p2p",
+    "blockchain"
+  ],
+  "author": "Alex Miller",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/GridPlus/trustless-bridge-client/issues"
+  },
+  "homepage": "https://github.com/GridPlus/trustless-bridge-client#readme",
+  "dependencies": {
+    "bluebird": "^3.5.1",
+    "mocha": "^5.0.0",
+    "p2p-node": "^0.1.1"
+  }
+}

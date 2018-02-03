@@ -1,4 +1,4 @@
-// Test p2p connections
+// Run the client
 const Peer = require('p2p-node').Peer;
 const net = require('net');
 const assert = require('assert');

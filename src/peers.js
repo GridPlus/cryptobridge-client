@@ -40,6 +40,7 @@ function connectToPeers(peers, cb, connections=[]) {
       peer.disconnect();
     })
     peer.on('message', (m) => {
+      //console.log('m', m)
       log.info(`Message from ${name} : ${m}`);
     })
     peer.connect();

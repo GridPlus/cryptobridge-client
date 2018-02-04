@@ -1,6 +1,6 @@
 // Connect and message peers
 const fs = require('fs');
-const Peer = require('p2p-node').Peer;
+const Peer = require('./lib/Peer.js').Peer;
 const Promise = require('bluebird').Promise;
 const log = require('winston');
 log.add(
@@ -40,7 +40,6 @@ function connectToPeers(peers, cb, connections=[]) {
       peer.disconnect();
     })
     peer.on('message', (m) => {
-      //console.log('m', m)
       log.info(`Message from ${name} : ${m}`);
     })
     peer.connect();

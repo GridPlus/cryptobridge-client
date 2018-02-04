@@ -7,8 +7,8 @@ exports.createServer = function(port=3001, options={}) {
     socket.on('end', () => {
       console.log('client disconnected');
     });
-    socket.on('data', (msg) => {
-      console.log('got message?', msg.toString('utf8'))
+    socket.on('data', (data) => {
+      const msg = JSON.parse(data.toString('utf8'));
       switch (msg.type) {
         case 'SIGREQ':
           console.log('signature request', msg);

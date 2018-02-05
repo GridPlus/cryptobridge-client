@@ -75,21 +75,40 @@ exports.addGroup = function(group, dir, cb) {
 // and are comma separated. The peer groups are indexed based on the networks
 exports.addPeers = function(peers, dir, index, cb) {
   const fPath = `${dir}/config.json`
-  let peersStr = '';
-  peers.forEach((peer) => {
-    peersStr += `${peer.host.host}:${peer.host.port},`
-  })
   _ifExists(fPath, (err, data, exists) => {
     if (err) { cb(err); }
     else {
-      if (!exists) { data = { peers: ''} }
-      else if (!data.peers) { data.peers = '' }
-      data.peers += peersStr;
+      if (!exists) { cb('ERROR: Config file does not exist. Start by adding a bridge with --add') }
+      else if (!data[index].peers) { data[index].peers = [] }
+      // Add the peers in a list
+      peers.forEach((peer) => {
+        data[index].peers.push(`${peer.host.host}:${peer.host.port}`);
+      })
       jsonfile.writeFile(fPath, data, { spaces: 2}, (err, success) => {
         if (err) { cb(err); }
         else { cb(null); }
       })
     }
+  })
+}
+
+// Get saved peers in an index
+exports.getPeers = function(dir, index, cb) {
+  const fPath = `${dir}/config.json`;
+  _ifExists(fPath, (err, data, exists) => {
+    if (err) { cb(err); }
+    else if (!exists) { cb('No peers saved.'); }
+    else { cb(null, data[index].peers); }
+  })
+}
+
+// Get saved hosts (web3 connectios) in an index
+exports.getHosts = function(dir, index, cb) {
+  const fPath = `${dir}/config.json`;
+  _ifExists(fPath, (err, data, exists) => {
+    if (err) { cb(err); }
+    else if (!exists) { cb('No peers saved.'); }
+    else { cb(null, [ data[index].hostA, data[index].hostB ]); }
   })
 }
 

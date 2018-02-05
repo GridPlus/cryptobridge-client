@@ -14,8 +14,12 @@ exports.getNetIndex = function(networks) {
 
 exports.getFirstIndex = function(dir) {
   const fPath = `${dir}/config.json`;
-  const config = jsonfile.readFileSync(fPath);
-  return Object.keys(config)[0];
+  try {
+    const config = jsonfile.readFileSync(fPath);
+    return Object.keys(config)[0];
+  } catch(err) {
+    throw new Error(err);
+  }
 }
 
 
@@ -73,12 +77,13 @@ exports.addPeers = function(peers, dir, index, cb) {
   const fPath = `${dir}/config.json`
   let peersStr = '';
   peers.forEach((peer) => {
-    peersStr += `${peer.host.host}:${peer.host.port}},`
+    peersStr += `${peer.host.host}:${peer.host.port},`
   })
   _ifExists(fPath, (err, data, exists) => {
     if (err) { cb(err); }
     else {
       if (!exists) { data = { peers: ''} }
+      else if (!data.peers) { data.peers = '' }
       data.peers += peersStr;
       jsonfile.writeFile(fPath, data, { spaces: 2}, (err, success) => {
         if (err) { cb(err); }
@@ -87,8 +92,6 @@ exports.addPeers = function(peers, dir, index, cb) {
     }
   })
 }
-
-
 
 function _ifExists(path, cb) {
   jsonfile.readFile(path, (err, f) => {

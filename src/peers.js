@@ -7,20 +7,6 @@ log.add(
   log.transports.File, { filename: 'tmp.log', json: true, timestamp: true, prettyPrint: true}
 )
 
-// Connect to all known peers. They should be saved in a data directory
-// specified in a config file (default `data/peers`). This will load an array
-// of connections to peers into memory and return it.
-exports.connectToKnownPeers = function(cb) {
-  getSavedPeers((err, peers) => {
-    if (err) { cb(err); }
-    else {
-      connectToPeers(peers, (connections) => {
-        cb(null, connections);
-      })
-    }
-  })
-}
-
 // Given a list of hosts, form p2p connections with them.
 function connectToPeers(peers, cb, connections=[]) {
   if (peers.length == 0) { cb(connections); }

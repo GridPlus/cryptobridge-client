@@ -14,7 +14,11 @@ const argv = require('yargs')
   .alias('d', 'datadir')
   .command('network', 'Specify the network address (bridge contract address) to use')
   .alias('n', 'network')
+  .command('start', 'Start bridge client. Begin listening to peers and connected blockchains')
+  .alias('s', 'start')
   .argv;
+
+console.log('Bridge Client v0.1\n')
 
 let DIR = `${process.cwd()}/data`;
 let NET_INDEX = null;
@@ -28,6 +32,13 @@ if(argv.network) {
   // Specify two networks being bridged
   if (argv.network.length != 2) { console.log('ERROR: Please supply two networks, e.g. `--network 0x...a --network 0x...b`'); }
   NET_INDEX = config.getNetIndex(argv.network);
+} else if (!argv.add) {
+  try {
+    NET_INDEX = config.getFirstIndex(DIR)
+  } catch (err) {
+    console.log('ERROR: Cannot retrieve default index. You can add a bridge with --add network_a_host,network_a_address,network_b_host,network_b_addr');
+    process.exit(1);
+  }
 }
 
 
@@ -41,9 +52,8 @@ if (argv.add) {
   })
 }
 
-if(argv.bootstrap) {
+if (argv.bootstrap) {
   // Add bootstrap peers
-  if (!NET_INDEX) { NET_INDEX = config.getFirstIndex(DIR) }
   const _peers = argv.bootstrap.split(',');
   peers.connectToPeers(_peers, (conns) => {
     if (conns.length > 0) {
@@ -58,7 +68,11 @@ if(argv.bootstrap) {
   })
 }
 
+if (argv.start) {
+  // Start listening to peers and blockchains
+  // peers
 
+}
 // // This is the server that peers will connect to and message
 // const s = server.createServer(8000);
 //

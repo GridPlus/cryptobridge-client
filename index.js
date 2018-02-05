@@ -74,14 +74,18 @@ if (argv.start) {
   // Start listening to peers and blockchains
   let peers;
   let clients;
+  console.log('getting peers')
   config.getPeers(DIR, INDEX, (err, _peers) => {
     peers = _peers;
+    console.log('getting hosts')
     config.getHosts(DIR, INDEX, (err, _hosts) => {
+      console.log('connecting to clients')
       Clients.connectToClients(_hosts, (err, _clients) => {
+        console.log('creating bridge')
         // Start a new Bridge client. This consists of a server listening to
         // a given port and handling socket messages from peers. The client
         // also checks linked web3 hosts for updated blockchain data.
-        const b = new Bridge({ index: INDEX, peers: _peers, clients: _clients });
+        const b = new Bridge({ index: INDEX, peers: _peers, clients: _clients, datadir: DIR });
       })
     })
   })

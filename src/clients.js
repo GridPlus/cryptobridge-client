@@ -7,10 +7,8 @@ function connectToClients(hosts, cb, clients=[]) {
   else {
     try {
       const host = hosts.pop();
-      console.log('host', host)
       const web3 = new Web3(new Web3.providers.HttpProvider(host));
       clients.push(web3);
-      console.log('clients.length', clients.length)
       connectToClients(hosts, cb, clients);
     } catch (err) {
       cb(err);

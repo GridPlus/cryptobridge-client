@@ -62,6 +62,10 @@ exports.addGroup = function(group, dir, cb) {
         data[i].hostB = hostB;
         data[i].addrA = addrA;
         data[i].addrB = addrB;
+        // Create files for header data
+        if (!fs.existsSync(`${dir}/${addrA}`)) { fs.mkdirSync(`${dir}/${addrA}`); }
+        if (!fs.existsSync(`${dir}/${addrB}`)) { fs.mkdirSync(`${dir}/${addrB}`); }
+
         jsonfile.writeFile(fPath, data, { spaces: 2 }, (err, success) => {
           if (err) { cb(err); }
           else { cb(null); }

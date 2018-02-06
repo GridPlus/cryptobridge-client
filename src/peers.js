@@ -2,13 +2,11 @@
 const fs = require('fs');
 const Peer = require('./lib/Peer.js').Peer;
 const Promise = require('bluebird').Promise;
-const log = require('winston');
-log.add(
-  log.transports.File, { filename: 'tmp.log', json: true, timestamp: true, prettyPrint: true}
-)
+const Log = require('./log');
 
 // Given a list of hosts, form p2p connections with them.
 function connectToPeers(peers, cb, connections=[]) {
+  let logger = Log.getLogger();
   if (peers.length == 0) { cb(connections); }
   else {
     // Peer stored as e.g. localhost:7545
@@ -17,18 +15,18 @@ function connectToPeers(peers, cb, connections=[]) {
     const peer = new Peer(loc[0], parseInt(loc[1]));
     const name = `${loc[0]}:${loc[1]}`;
     peer.on('connect', (c) => {
-      log.info(`Connected to peer ${name}`);
+      logger.log('info', `Connected to peer ${name}`);
     })
     peer.on('end', (d) => {
-      log.info(`Disconnected from ${name}`);
+      logger.log('info', `Disconnected from ${name}`);
     })
     peer.on('error', (e) => {
-      log.warn(`Error from ${name}: ${e.error}`);
+      logger.log('warn', `Error from ${name}: ${e.error}`);
       peer.disconnect();
       disconnected = true;
     })
     peer.on('message', (m) => {
-      log.info(`Message from ${name} : ${m}`);
+      logger.log('info', `Message from ${name} : ${m}`);
     })
     peer.connect();
     setTimeout(() => {

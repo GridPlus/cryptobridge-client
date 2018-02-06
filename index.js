@@ -5,6 +5,7 @@ const config = require('./src/config.js');
 const Bridge = require('./src/lib/Bridge.js');
 const Peers = require('./src/peers.js');
 const Clients = require('./src/clients.js');
+const Log = require('./src/log.js');
 
 const argv = require('yargs')
   .usage('Usage: $0 <cmd> [options]')
@@ -29,6 +30,9 @@ if (argv.datadir) {
   DIR = argv.datadir;
 }
 if (!fs.existsSync(DIR)) { fs.mkdirSync(DIR); }
+// Setup the logger
+Log.setLogger(DIR);
+
 
 if(argv.network) {
   // Specify two networks being bridged
@@ -74,18 +78,21 @@ if (argv.start) {
   // Start listening to peers and blockchains
   let peers;
   let clients;
-  console.log('getting peers')
   config.getPeers(DIR, INDEX, (err, _peers) => {
     peers = _peers;
-    console.log('getting hosts')
     config.getHosts(DIR, INDEX, (err, _hosts) => {
-      console.log('connecting to clients')
       Clients.connectToClients(_hosts, (err, _clients) => {
-        console.log('creating bridge')
+        const _port = isNaN(parseInt(argv.start)) ? null : parseInt(argv.start);
         // Start a new Bridge client. This consists of a server listening to
         // a given port and handling socket messages from peers. The client
         // also checks linked web3 hosts for updated blockchain data.
-        const b = new Bridge({ index: INDEX, peers: _peers, clients: _clients, datadir: DIR });
+        const b = new Bridge({
+          index: INDEX,
+          peers: _peers,
+          clients: _clients,
+          datadir: DIR,
+          port: _port,
+        });
       })
     })
   })

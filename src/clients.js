@@ -3,8 +3,10 @@ const Web3 = require('web3');
 
 // Load a list of connections to web3 clients
 function connectToClients(hosts, cb, clients=[]) {
-  if (hosts.length == 0) { cb(null, clients); }
-  else {
+  if (hosts.length == 0) {
+    // Clients will be in reverse order
+    cb(null, clients.reverse()); 
+  } else {
     try {
       const host = hosts.pop();
       const web3 = new Web3(new Web3.providers.HttpProvider(host));

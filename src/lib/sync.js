@@ -13,7 +13,7 @@ exports.checkHeaders = function(fPath, cb) {
   else {
     let line;
     const reader = readline.createInterface({ input: fs.createReadStream(fPath) })
-    reader.on('error', (err) => { console.log('got dur err', err); cb(err); reader.close(); })
+    reader.on('error', (err) => { cb(err); reader.close(); })
     reader.on('line', (_line) => {
       line = _line.split(',').splice(1); // Every line has a leading comma
       for (let i = 0; i < line.length; i += 4) {
@@ -30,7 +30,6 @@ exports.checkHeaders = function(fPath, cb) {
 
 // Sync up to the current block and save to a file. Only header data is stored.
 function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb) {
-  // console.log('currentBlockN', currentBlockN, 'lastBlockN', lastBlockN)
   if (currentBlockN == lastBlockN) {
     fStream.end(_stringify(cache));
     cb(null, _zipCache(cache));
@@ -46,9 +45,11 @@ function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb) {
           receiptsRoot: block.receiptsRoot,
         };
         cache.push(item);
-        if (cache.length > 99) {
-          fStream.write(_stringify(cache));
-          cache = [];
+        if (cache.length > 100) {
+          // Write chunks of 100, but make sure the cache has at least one value
+          // at all times (so it can be referenced in other places)
+          fStream.write(_stringify(cache.slice(0, cache.length - 1)));
+          cache = cache[cache.length - 1];
         }
       }
       syncData(currentBlockN, lastBlockN + 1, client, fStream, cache, cb);

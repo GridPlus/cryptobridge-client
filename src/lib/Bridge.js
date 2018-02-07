@@ -123,6 +123,14 @@ class Bridge {
     })
   }
 
+  // If this client is elected as the proposer, get the relevant data and form
+  // the block header Merkle root.
+  getProposalRoot(queryAddr, bridgedAddr, client, cb) {
+
+  }
+
+
+
   // Handle an incoming socket message
   handleMsg(data) {
     const msg = JSON.parse(data.toString('utf8'));

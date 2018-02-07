@@ -30,8 +30,6 @@ class Wallet {
     this.wallet = new ethwallet(Buffer.from(decrypted, 'hex'))
   }
 
-
-
   // Get the address of this wallet
   getAddress() {
     return '0x' + this.wallet.getAddress().toString('hex');

@@ -28,6 +28,7 @@ console.log('Bridge Client v0.1\n')
 
 let DIR = `${process.cwd()}/data`;
 let INDEX = null;
+let WALLET = null;
 if (argv.datadir) {
   // Change the data directory
   DIR = argv.datadir;
@@ -85,56 +86,82 @@ if (argv['create-wallet']) {
   _createWallet();
 }
 
+// If process is being started, it needs a wallet. User can specify a wallet
+// index with --wallet (or -w) or create a new wallet if none exists.
+// File index starts with unix timestamp, so order of creation is preserved.
 if (argv.start) {
-  // Get wallet
-  let walletIndex;
-  if (!argv.wallet) {
-    // If no wallet is provided, pull the first one in DATADIR/wallets
-    if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
-      _createWallet();
+  let walletSeed;
+
+  if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
+    // If there are no saved wallets, create a new wallet
+    console.log("No wallet detected. Let's create one.")
+    _createWallet((_wallet) => {
+      WALLET = _wallet;
+    });
+  } else if (argv.wallet) {
+    // If an index was passed, rehydrate the wallet with that file's data
+    if (isNaN(parseInt(argv.wallet))) {
+      console.log('Error parsing wallet input. Please provide an index for which wallet to use. To see saved wallets, select --list-wallets');
     }
-    walletIndex = 0;
+    walletSeed = fs.readFileSync(`${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[parseInt(argv.wallet)]}`);
+    _unlockWallet(walletSeed, (_wallet) => {
+      WALLET = _wallet;
+      start();
+    })
   } else {
-    // Otherwise the user passes in an index of the desired wallet file within
-    // the DATADIR. This defaults to zero
-    walletIndex = parseInt(argv.wallet);
+    // Otherwise, unlock the default wallet (index 0)
+    walletSeed = fs.readFileSync(`${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[0]}`);
+    _unlockWallet(walletSeed, (_wallet) => {
+      WALLET = _wallet;
+      start();
+    })
   }
-  let wallet = new Wallet();
-  let seed = fs.readFileSync(`${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[0]}`);
-  prompt.start();
-  let q = 'Enter password to unlock wallet';
-  prompt.get({ name: q, hidden: true, replace: '*' }, (err, res) => {
-    wallet.rehydrate(seed.toString('utf8'), res[q]);
-    // Start listening to peers and blockchains
-    let peers;
-    let clients;
-    config.getPeers(DIR, INDEX, (err, _peers) => {
-      peers = _peers;
-      config.getHosts(DIR, INDEX, (err, _hosts) => {
-        Clients.connectToClients(_hosts, (err, _clients) => {
-          const _port = isNaN(parseInt(argv.start)) ? null : parseInt(argv.start);
-          // Start a new Bridge client. This consists of a server listening to
-          // a given port and handling socket messages from peers. The client
-          // also checks linked web3 hosts for updated blockchain data.
-          const b = new Bridge({
-            index: INDEX,
-            peers: _peers,
-            clients: _clients,
-            datadir: DIR,
-            port: _port,
-            wallet: wallet,
-          });
-          console.log(`Wallet address: ${wallet.getAddress()}`)
-          console.log('Bridge client started')
-        })
+}
+
+// Start the server and p2p connections
+function start() {
+  // Start listening to peers and blockchains
+  let peers;
+  let clients;
+  config.getPeers(DIR, INDEX, (err, _peers) => {
+    peers = _peers;
+    config.getHosts(DIR, INDEX, (err, _hosts) => {
+      Clients.connectToClients(_hosts, (err, _clients) => {
+        const _port = isNaN(parseInt(argv.start)) ? null : parseInt(argv.start);
+        // Start a new Bridge client. This consists of a server listening to
+        // a given port and handling socket messages from peers. The client
+        // also checks linked web3 hosts for updated blockchain data.
+        const b = new Bridge({
+          index: INDEX,
+          peers: _peers,
+          clients: _clients,
+          datadir: DIR,
+          port: _port,
+          wallet: WALLET,
+        });
+        console.log(`Wallet address: ${wallet.getAddress()}`)
+        console.log('Bridge client started')
       })
     })
   })
+};
+
+// Given a seed (saved in a wallet file), rehydrate a wallet with a password
+function _unlockWallet(seed, cb) {
+  let wallet = new Wallet();
+  prompt.start();
+  let q = 'Enter password to unlock wallet';
+  prompt.get({ name: q, hidden: true, replace: '*' }, (err, res) => {
+    if (err) { throw new Error('Could not unlock wallet.'); }
+    wallet.rehydrate(seed.toString('utf8'), res[q]);
+    cb(wallet);
+  })
 }
 
-function _createWallet() {
+// Create a new wallet with a password. It will save that to a file in an
+// encrypted seed.
+function _createWallet(cb) {
   let qText = ['Password', 'Re-enter password'];
-
   let questions = [{
     name: qText[0],
     hidden: true,
@@ -151,6 +178,7 @@ function _createWallet() {
     } else {
       const w = new Wallet({ password: res[qText[0]] });
       w.save(DIR)
+      cb(w);
     }
   })
 }

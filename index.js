@@ -1,5 +1,6 @@
 // Start your server and connect to peers
 const fs = require('fs');
+const jsonfile = require('jsonfile');
 const net = require('net');
 const prompt = require('prompt');
 const config = require('./src/config.js');
@@ -22,6 +23,7 @@ const argv = require('yargs')
   .command('start', 'Start bridge client. Begin listening to peers and connected blockchains')
   .alias('s', 'start')
   .command('create-wallet', 'Generate a new wallet. You will be prompted for a password')
+  .command('list-wallets', 'List indices for saved wallets')
   .argv;
 
 console.log('Bridge Client v0.1\n')
@@ -83,15 +85,30 @@ if (argv.bootstrap) {
 if (argv['create-wallet']) {
   let pw;
   let done = false;
-  _createWallet();
+  _createWallet((w) => {
+    console.log(`Created wallet with address ${w.getAddress()}`);
+  });
 }
+
+// Get wallet list
+if (argv['list-wallets']) {
+  if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
+    console.log('No wallets saved. You can create one with --create-wallet');
+  } else {
+    _getAddresses(fs.readdirSync(`${DIR}/wallets`), (addrs) => {
+      console.log('Saved wallets:')
+      addrs.forEach((addr, i) => {
+        console.log(`[${i}]\t${addr}`)
+      })
+    })
+  }
+}
+
 
 // If process is being started, it needs a wallet. User can specify a wallet
 // index with --wallet (or -w) or create a new wallet if none exists.
 // File index starts with unix timestamp, so order of creation is preserved.
 if (argv.start) {
-  let walletSeed;
-
   if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
     // If there are no saved wallets, create a new wallet
     console.log("No wallet detected. Let's create one.")
@@ -103,15 +120,15 @@ if (argv.start) {
     if (isNaN(parseInt(argv.wallet))) {
       console.log('Error parsing wallet input. Please provide an index for which wallet to use. To see saved wallets, select --list-wallets');
     }
-    walletSeed = fs.readFileSync(`${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[parseInt(argv.wallet)]}`);
-    _unlockWallet(walletSeed, (_wallet) => {
+    const path = `${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[parseInt(argv.wallet)]}`;
+    _unlockWallet(path, (_wallet) => {
       WALLET = _wallet;
       start();
     })
   } else {
     // Otherwise, unlock the default wallet (index 0)
-    walletSeed = fs.readFileSync(`${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[0]}`);
-    _unlockWallet(walletSeed, (_wallet) => {
+    const path = `${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[0]}`;
+    _unlockWallet(path, (_wallet) => {
       WALLET = _wallet;
       start();
     })
@@ -139,7 +156,7 @@ function start() {
           port: _port,
           wallet: WALLET,
         });
-        console.log(`Wallet address: ${wallet.getAddress()}`)
+        console.log(`Wallet address: ${WALLET.getAddress()}`)
         console.log('Bridge client started')
       })
     })
@@ -147,13 +164,13 @@ function start() {
 };
 
 // Given a seed (saved in a wallet file), rehydrate a wallet with a password
-function _unlockWallet(seed, cb) {
+function _unlockWallet(path, cb) {
   let wallet = new Wallet();
   prompt.start();
   let q = 'Enter password to unlock wallet';
   prompt.get({ name: q, hidden: true, replace: '*' }, (err, res) => {
     if (err) { throw new Error('Could not unlock wallet.'); }
-    wallet.rehydrate(seed.toString('utf8'), res[q]);
+    wallet.rehydrate(path, res[q]);
     cb(wallet);
   })
 }
@@ -181,4 +198,19 @@ function _createWallet(cb) {
       cb(w);
     }
   })
+}
+
+// Given a set of file paths, get addresses
+function _getAddresses(paths, cb, addrs=[]) {
+  if (paths.length == 0) { cb(addrs.reverse()); }
+  else {
+    const path = paths.pop();
+    jsonfile.readFile(`${DIR}/wallets/${path}`, (err, data) => {
+      if (err) { throw new Error('Could not get addresses. Wallet file(s) may be corrupted.'); }
+      else {
+        addrs.push(data.address);
+        _getAddresses(paths, cb, addrs);
+      }
+    })
+  }
 }

@@ -2,16 +2,31 @@
 const crypto = require('crypto');
 const ethwallet = require('ethereumjs-wallet');
 const ethutil = require('ethereumjs-util');
+const fs = require('fs');
 
 class Wallet {
   constructor(opts) {
-    
-    this.wallet = new ethwallet(opts.pkey || crypto.randomBytes(32))
+    console.log('opts', opts)
+    this.password = opts.password ? opts.password : '';
+    console.log('this.pw', this.password)
+    this.wallet = new ethwallet(crypto.randomBytes(32));
   }
 
-  salt(n, r) {
-
+  save(dir=`${process.cwd()}`) {
+    console.log('pw', this.password)
+    const cipher = crypto.createCipher('AES-256-CFB8', this.password);
+    let crypted = cipher.update(this.wallet.getPrivateKey(), 'utf8', 'hex')
+    crypted += cipher.final('hex');
+    if (!fs.existsSync(`${dir}/wallets`)) { fs.mkdirSync(`${dir}/wallets`); }
+    let fPath = `${dir}/wallets/${new Date().getTime()}_${crypto.randomBytes(8).toString('hex')}`;
+    fs.open(fPath, 'a+', (err, f) => {
+      fs.writeFileSync(fPath, crypted);
+    })
   }
+
+  // rehydrate(fPath, )
+
+
 
   // Get the address of this wallet
   getAddress() {

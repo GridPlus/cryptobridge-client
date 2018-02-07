@@ -21,8 +21,7 @@ const argv = require('yargs')
   .alias('n', 'network')
   .command('start', 'Start bridge client. Begin listening to peers and connected blockchains')
   .alias('s', 'start')
-  .command('wallet', 'Generate a new wallet. You will be prompted for a password')
-  .alias('w', 'wallet')
+  .command('create-wallet', 'Generate a new wallet. You will be prompted for a password')
   .argv;
 
 console.log('Bridge Client v0.1\n')
@@ -51,7 +50,7 @@ if(argv.network) {
   }
 }
 
-
+// Add a bridge
 if (argv.add) {
   // Add a bridge group
   const group = argv.add.split(',');
@@ -62,6 +61,7 @@ if (argv.add) {
   })
 }
 
+// Bootstrap with peers
 if (argv.bootstrap) {
   // Add bootstrap peers
   const _peers = argv.bootstrap.split(',');
@@ -78,35 +78,30 @@ if (argv.bootstrap) {
   })
 }
 
-if (argv.wallet) {
+// Wallets - create or import
+if (argv['create-wallet']) {
   let pw;
-  let randomness;
   let done = false;
+  let qText = ['Password', 'Re-enter password'];
 
   let questions = [{
-    name: 'Password',
+    name: qText[0],
     hidden: true,
     replace: '*'
   }, {
-    name: 'Re-enter password',
+    name: qText[1],
     hidden: true,
     replace: '*'
   }];
 
-  if (argv.wallet == true) {
-    questions.push({
-      name: 'Randomness (just type random stuff)',
-      hidden: true,
-      replace: '*',
-    })
-  }
-
   prompt.start();
   prompt.get(questions, (err, res) => {
-    if (res['Password'] != res['Re-enter password']) {
+    if (res[qText[0]] != res[qText[1]]) {
       console.log('Error: Your passwords do not match')
+    } else {
+      const w = new Wallet({ password: res[qText[0]] });
+      w.save(DIR)
     }
-    console.log('res', res);
   })
   // console.log('Generating new wallet. Please enter a password.')
   // process.stdout.write('Password> ');
@@ -126,6 +121,15 @@ if (argv.wallet) {
 }
 
 if (argv.start) {
+  // Get wallet
+  /*if (!argv.wallet) {
+    // If no wallet is provided, pull the first one in DATADIR/wallets
+  } else if (argv.wallet.length == 64) {
+    // The user can pass in a path to a wallet file
+  } else {
+    // Otherwise the user passes in an index of the desired wallet file within
+    // the DATADIR. This defaults to zero
+  }*/
   // Start listening to peers and blockchains
   let peers;
   let clients;

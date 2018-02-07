@@ -16,9 +16,9 @@ exports.checkHeaders = function(fPath, cb) {
     reader.on('error', (err) => { cb(err); reader.close(); })
     reader.on('line', (_line) => {
       line = _line.split(',').splice(1); // Every line has a leading comma
-      for (let i = 0; i < line.length; i += 4) {
+      for (let i = 0; i < line.length; i += 5) {
         if (parseInt(line[i]) != lastNumber + 1) { cb('Problem syncing block headers.'); break; }
-        lastHeader = _hashHeader(line[i], lastHeader, line[i+1], line[i+2], line[i+3])
+        lastHeader = line[i+4];
         lastNumber = parseInt(line[i]);
       }
     })
@@ -29,7 +29,8 @@ exports.checkHeaders = function(fPath, cb) {
 }
 
 // Sync up to the current block and save to a file. Only header data is stored.
-function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb) {
+function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb,
+lastHeader=`0x${leftPad(0, 64, '0')}`) {
   if (currentBlockN == lastBlockN) {
     fStream.end(_stringify(cache));
     cb(null, _zipCache(cache));
@@ -44,6 +45,8 @@ function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb) {
           transactionsRoot: block.transactionsRoot,
           receiptsRoot: block.receiptsRoot,
         };
+        item.header = _hashHeader(item.n, lastHeader, item.timestamp,
+          item.transactionsRoot, item.receiptsRoot);
         cache.push(item);
         if (cache.length > 100) {
           // Write chunks of 100, but make sure the cache has at least one value
@@ -58,10 +61,33 @@ function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb) {
 }
 exports.syncData = syncData;
 
+// Load saved headers inside a range of block numbers
+exports.loadHeaders = function(startN, endN, fPath, cb) {
+  let headers = [];
+  let lastN = 0;
+  const reader = readline.createInterface({ input: fs.createReadStream(fPath) })
+  reader.on('error', (err) => { cb(err); reader.close(); })
+  reader.on('line', (_line) => {
+    line = _line.split(',').splice(1); // Every line has a leading comma
+    if (line[0] + 99 > startN) {       // 100 items per line
+      for (let i = 0; i < line.length; i += 5) {
+        if (line[i] >= startN && line[i] <= endN) {
+          // Save the header if we are in the range of desired values
+          headers.push(line[i + 4]);
+          lastN = line[i];
+        } else {
+          reader.close();
+        }
+      }
+    }
+  })
+  reader.on('close', () => { cb(null, headers, lastN); })
+};
+
 function _stringify(data) {
   let s = '';
   data.forEach((d) => {
-    s += `,${d.n},${d.timestamp},${d.transactionsRoot},${d.receiptsRoot}`;
+    s += `,${d.n},${d.timestamp},${d.transactionsRoot},${d.receiptsRoot},${d.header}`;
   })
   s += '\n';
   return s;

@@ -3,6 +3,7 @@ const net = require('net');
 const fs = require('fs');
 const sync = require('./util/sync.js');
 const bridges = require('./util/bridges.js');
+const merkle = require('./util/merkle.js');
 const Log = require('./../log.js');
 const Wallet = require('./Wallet.js');
 let logger;
@@ -22,6 +23,8 @@ class Bridge {
     this.index = opts.index || '';
     this.datadir = opts.datadir || `${process.cwd()}/data`;
     this.addrs = this.index.split('_');
+    // Number of blocks to wait to propose
+    this.proposeThreshold = opts.proposeThreshold || 512;
     // Header data (number, timestamp, prevHeader, txRoot, receiptsRoot) is
     // stored in lines with 100 entries each. The remainder is kept in a cache.
     this.cache = [];
@@ -70,6 +73,9 @@ class Bridge {
                 if (err) { logger.log('warn', `ERROR: ${err}`); }
               });
             }
+
+            this.getProposalRoot(this.addrs[0], 1, 4, () => {})
+
             // Continue syncing periodically
             setInterval(() => {
               this.sync(this.addrs[i], this.cache[i], this.clients[i], (err, newCache) => {
@@ -86,8 +92,8 @@ class Bridge {
 
   // Sync a given client. Headers are persisted in sets of 100 along with their
   // corresponding block numbers
-  sync(addr, cache, client, cb) {
-    const fPath = `${this.datadir}/${addr}/headers`;
+  sync(chain, cache, client, cb) {
+    const fPath = `${this.datadir}/${chain}/headers`;
     // Make sure we don't write the last line twice. The purpose of saving the
     // cache is so we can keep writing to unfinished lines
     if (cache.length > 99) { cache = []; }
@@ -123,10 +129,31 @@ class Bridge {
     })
   }
 
+  propose(queryAddr, bridgedAddr, client, cb) {
+    const d = this.bridgeData[queryAddr][bridgedAddr];
+    const currentN = this.cache[this.cache.length - 1].n;
+    if (d.proposer != this.wallet.getAddress() || this.proposeThreshold - 1 > currentN - d.lastBlock) {
+      // Do nothing if you're not the propose and/or not enough blocks have elapsed
+      cb(null, null);
+    } else {
+      // Get the root
+      const range = util.lastPowTwo(currentN - d.lastBlock - 1);
+      getProposalRoot(queryAddr, d.lastBlock + 1, d.lastBlock + 1 + range, (err, headerRoot) => {
+        // Broadcast root with metadata to all known peers
+      })
+    }
+  }
+
   // If this client is elected as the proposer, get the relevant data and form
   // the block header Merkle root.
-  getProposalRoot(queryAddr, bridgedAddr, client, cb) {
-
+  getProposalRoot(chain, startBlock, endBlock, cb) {
+    sync.loadHeaders(startBlock, endBlock, `${this.datadir}/${chain}/headers`, (err, headers, n) => {
+      if (n < endBlock) { cb('Not synced to that block. Try again later.'); }
+      else {
+        const headerRoot = merkle.getMerkleRoot(headers);
+        cb(null, headerRoot);
+      }
+    })
   }
 
 

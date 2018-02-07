@@ -5,6 +5,7 @@ const net = require('net');
 const prompt = require('prompt');
 const config = require('./src/config.js');
 const Bridge = require('./src/lib/Bridge.js');
+const util = require('./src/lib/util/util.js');
 const Peers = require('./src/peers.js');
 const Clients = require('./src/clients.js');
 const Log = require('./src/log.js');
@@ -24,20 +25,25 @@ const argv = require('yargs')
   .alias('s', 'start')
   .command('create-wallet', 'Generate a new wallet. You will be prompted for a password')
   .command('list-wallets', 'List indices for saved wallets')
+  .command('proposal-threshold', 'Number of blocks that must elapse before you will propose a root. Must be a power of two. Default 512')
+  .alias('t', 'threshold')
   .argv;
 
 console.log('Bridge Client v0.1\n')
 
+// Datadir
 let DIR = `${process.cwd()}/data`;
 let INDEX = null;
 let WALLET = null;
-if (argv.datadir) {
-  // Change the data directory
-  DIR = argv.datadir;
-}
+if (argv.datadir) { DIR = argv.datadir; }
 if (!fs.existsSync(DIR)) { fs.mkdirSync(DIR); }
+
 // Setup the logger
 Log.setLogger(DIR);
+
+// Numerical parameters/config
+let THRESH = 512;
+if (argv['proposal-threshold']) { THRESH = util.lastPowTwo(argv['proposal-threshold']); }
 
 
 if(argv.network) {
@@ -154,6 +160,7 @@ function start() {
           clients: _clients,
           datadir: DIR,
           port: _port,
+          proposeThreshold: THRESH,
           wallet: WALLET,
         });
         console.log(`Wallet address: ${WALLET.getAddress()}`)

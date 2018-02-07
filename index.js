@@ -1,11 +1,13 @@
 // Start your server and connect to peers
 const fs = require('fs');
 const net = require('net');
+const prompt = require('prompt');
 const config = require('./src/config.js');
 const Bridge = require('./src/lib/Bridge.js');
 const Peers = require('./src/peers.js');
 const Clients = require('./src/clients.js');
 const Log = require('./src/log.js');
+const Wallet = require('./src/lib/Wallet.js');
 
 const argv = require('yargs')
   .usage('Usage: $0 <cmd> [options]')
@@ -19,6 +21,8 @@ const argv = require('yargs')
   .alias('n', 'network')
   .command('start', 'Start bridge client. Begin listening to peers and connected blockchains')
   .alias('s', 'start')
+  .command('wallet', 'Generate a new wallet. You will be prompted for a password')
+  .alias('w', 'wallet')
   .argv;
 
 console.log('Bridge Client v0.1\n')
@@ -74,6 +78,53 @@ if (argv.bootstrap) {
   })
 }
 
+if (argv.wallet) {
+  let pw;
+  let randomness;
+  let done = false;
+
+  let questions = [{
+    name: 'Password',
+    hidden: true,
+    replace: '*'
+  }, {
+    name: 'Re-enter password',
+    hidden: true,
+    replace: '*'
+  }];
+
+  if (argv.wallet == true) {
+    questions.push({
+      name: 'Randomness (just type random stuff)',
+      hidden: true,
+      replace: '*',
+    })
+  }
+
+  prompt.start();
+  prompt.get(questions, (err, res) => {
+    if (res['Password'] != res['Re-enter password']) {
+      console.log('Error: Your passwords do not match')
+    }
+    console.log('res', res);
+  })
+  // console.log('Generating new wallet. Please enter a password.')
+  // process.stdout.write('Password> ');
+  // process.stdin.setEncoding('utf8');
+  // process.stdin.once('data', (d) => {
+  //   pw = d;
+  //   process.stdout.write('Retype password> ');
+  //   process.stdin.once('data', (d2) => {
+  //     if (d2 != pw) { console.log('Error: Passwords do not match.')}
+  //     else {
+  //       if (argv.wallet != true) {
+  //         randomness = argv.wallet
+  //       }
+  //     }
+  //   }).resume();
+  // }).resume();
+}
+
 if (argv.start) {
   // Start listening to peers and blockchains
   let peers;
@@ -83,6 +134,7 @@ if (argv.start) {
     config.getHosts(DIR, INDEX, (err, _hosts) => {
       Clients.connectToClients(_hosts, (err, _clients) => {
         const _port = isNaN(parseInt(argv.start)) ? null : parseInt(argv.start);
+        const _wallet = new Wallet();
         // Start a new Bridge client. This consists of a server listening to
         // a given port and handling socket messages from peers. The client
         // also checks linked web3 hosts for updated blockchain data.
@@ -92,6 +144,7 @@ if (argv.start) {
           clients: _clients,
           datadir: DIR,
           port: _port,
+          wallet: _wallet,
         });
       })
     })

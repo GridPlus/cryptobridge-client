@@ -1,8 +1,10 @@
+// Bridge server to manage peer connections, blockchain data, and signatures.
 const net = require('net');
 const fs = require('fs');
-const sync = require('./sync');
-const bridges = require('./bridgesUtil.js');
+const sync = require('./util/sync.js');
+const bridges = require('./util/bridges.js');
 const Log = require('./../log.js');
+const Wallet = require('./Wallet.js');
 let logger;
 
 // Run a bridge client. This has a set of peers and two web3 clients corresponding
@@ -10,8 +12,10 @@ let logger;
 class Bridge {
   constructor(opts) {
     logger = Log.getLogger();
-
     if (!opts) { opts = {}; }
+
+    this.wallet = opts.wallet || new Wallet();
+    logger.log('info', `Wallet setup: ${this.wallet.getAddress()}`)
     this.port = opts.port || 8000;
     this.peers = opts.peers || [];
     this.clients = opts.clients || [];

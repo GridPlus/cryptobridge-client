@@ -1,6 +1,5 @@
 // Forked from p2p-node. Changes the write stream on .send method to avoid
 // bitcoin-specific functionality
-
 var net = require('net');
 var events = require('events');
 var util = require('util');

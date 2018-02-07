@@ -82,6 +82,57 @@ if (argv.bootstrap) {
 if (argv['create-wallet']) {
   let pw;
   let done = false;
+  _createWallet();
+}
+
+if (argv.start) {
+  // Get wallet
+  let walletIndex;
+  if (!argv.wallet) {
+    // If no wallet is provided, pull the first one in DATADIR/wallets
+    if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
+      _createWallet();
+    }
+    walletIndex = 0;
+  } else {
+    // Otherwise the user passes in an index of the desired wallet file within
+    // the DATADIR. This defaults to zero
+    walletIndex = parseInt(argv.wallet);
+  }
+  let wallet = new Wallet();
+  let seed = fs.readFileSync(`${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[0]}`);
+  prompt.start();
+  let q = 'Enter password to unlock wallet';
+  prompt.get({ name: q, hidden: true, replace: '*' }, (err, res) => {
+    wallet.rehydrate(seed.toString('utf8'), res[q]);
+    // Start listening to peers and blockchains
+    let peers;
+    let clients;
+    config.getPeers(DIR, INDEX, (err, _peers) => {
+      peers = _peers;
+      config.getHosts(DIR, INDEX, (err, _hosts) => {
+        Clients.connectToClients(_hosts, (err, _clients) => {
+          const _port = isNaN(parseInt(argv.start)) ? null : parseInt(argv.start);
+          // Start a new Bridge client. This consists of a server listening to
+          // a given port and handling socket messages from peers. The client
+          // also checks linked web3 hosts for updated blockchain data.
+          const b = new Bridge({
+            index: INDEX,
+            peers: _peers,
+            clients: _clients,
+            datadir: DIR,
+            port: _port,
+            wallet: wallet,
+          });
+          console.log(`Wallet address: ${wallet.getAddress()}`)
+          console.log('Bridge client started')
+        })
+      })
+    })
+  })
+}
+
+function _createWallet() {
   let qText = ['Password', 'Re-enter password'];
 
   let questions = [{
@@ -93,7 +144,6 @@ if (argv['create-wallet']) {
     hidden: true,
     replace: '*'
   }];
-
   prompt.start();
   prompt.get(questions, (err, res) => {
     if (res[qText[0]] != res[qText[1]]) {
@@ -103,63 +153,4 @@ if (argv['create-wallet']) {
       w.save(DIR)
     }
   })
-  // console.log('Generating new wallet. Please enter a password.')
-  // process.stdout.write('Password> ');
-  // process.stdin.setEncoding('utf8');
-  // process.stdin.once('data', (d) => {
-  //   pw = d;
-  //   process.stdout.write('Retype password> ');
-  //   process.stdin.once('data', (d2) => {
-  //     if (d2 != pw) { console.log('Error: Passwords do not match.')}
-  //     else {
-  //       if (argv.wallet != true) {
-  //         randomness = argv.wallet
-  //       }
-  //     }
-  //   }).resume();
-  // }).resume();
 }
-
-if (argv.start) {
-  // Get wallet
-  /*if (!argv.wallet) {
-    // If no wallet is provided, pull the first one in DATADIR/wallets
-  } else if (argv.wallet.length == 64) {
-    // The user can pass in a path to a wallet file
-  } else {
-    // Otherwise the user passes in an index of the desired wallet file within
-    // the DATADIR. This defaults to zero
-  }*/
-  // Start listening to peers and blockchains
-  let peers;
-  let clients;
-  config.getPeers(DIR, INDEX, (err, _peers) => {
-    peers = _peers;
-    config.getHosts(DIR, INDEX, (err, _hosts) => {
-      Clients.connectToClients(_hosts, (err, _clients) => {
-        const _port = isNaN(parseInt(argv.start)) ? null : parseInt(argv.start);
-        const _wallet = new Wallet();
-        // Start a new Bridge client. This consists of a server listening to
-        // a given port and handling socket messages from peers. The client
-        // also checks linked web3 hosts for updated blockchain data.
-        const b = new Bridge({
-          index: INDEX,
-          peers: _peers,
-          clients: _clients,
-          datadir: DIR,
-          port: _port,
-          wallet: _wallet,
-        });
-      })
-    })
-  })
-}
-// // This is the server that peers will connect to and message
-// const s = server.createServer(8000);
-//
-// // Connect to known peers
-// peers.connectToKnownPeers((err, p) => {
-//   console.log('connected to', p ? p.length : 0, 'peers')
-//   const obj = { type: 'SIGREQ' }
-//   p[0].send('thing', new Buffer(JSON.stringify(obj), 'utf8'))
-// });

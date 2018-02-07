@@ -3,19 +3,18 @@ const crypto = require('crypto');
 const ethwallet = require('ethereumjs-wallet');
 const ethutil = require('ethereumjs-util');
 const fs = require('fs');
+const cipherAlgo = 'AES-256-CFB8';
 
 class Wallet {
   constructor(opts) {
-    console.log('opts', opts)
+    if (!opts) { opts = {}; }
     this.password = opts.password ? opts.password : '';
-    console.log('this.pw', this.password)
     this.wallet = new ethwallet(crypto.randomBytes(32));
   }
 
   save(dir=`${process.cwd()}`) {
-    console.log('pw', this.password)
-    const cipher = crypto.createCipher('AES-256-CFB8', this.password);
-    let crypted = cipher.update(this.wallet.getPrivateKey(), 'utf8', 'hex')
+    const cipher = crypto.createCipher(cipherAlgo, this.password);
+    let crypted = cipher.update(this.wallet.getPrivateKey().toString('hex'), 'utf8', 'hex')
     crypted += cipher.final('hex');
     if (!fs.existsSync(`${dir}/wallets`)) { fs.mkdirSync(`${dir}/wallets`); }
     let fPath = `${dir}/wallets/${new Date().getTime()}_${crypto.randomBytes(8).toString('hex')}`;
@@ -24,7 +23,12 @@ class Wallet {
     })
   }
 
-  // rehydrate(fPath, )
+  rehydrate(data, password) {
+    const decipher = crypto.createDecipher(cipherAlgo, password);
+    let decrypted = decipher.update(data, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    this.wallet = new ethwallet(Buffer.from(decrypted, 'hex'))
+  }
 
 
 

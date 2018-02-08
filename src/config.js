@@ -145,18 +145,17 @@ function _ifExists(path, cb) {
   })
 }
 
-function _loadPeers(hosts, cb, peers=[]) {
-  if (hosts.length == 0) { cb(null, peers.reverse()); }
+function _loadPeers(hosts, cb, peers={}) {
+  if (hosts.length == 0) { cb(null, peers); }
   else {
     const host = hosts.pop();
     const params = host.split(':');
     const peer = new Peer(params[0], params[1]);
-    peer.on('connect', () => { console.log('#### peer connected'); })
-    peer.on('error', (e) => { console.log('peer error', e)})
-    peer.on('data', (d) => { console.log('peer data', d); })
-    peer.on('message', (d) => { console.log('peer message', d);})
+    let connected = false;
+    peer.on('error', () => {})
+    peer.on('connect', () => { connected = true; })
     peer.connect();
-    peers.push(peer);
+    peers[host] = peer;
     _loadPeers(hosts, cb, peers);
   }
 }

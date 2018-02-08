@@ -1,11 +1,13 @@
 // Bridge server to manage peer connections, blockchain data, and signatures.
 const net = require('net');
 const fs = require('fs');
+const config = require('../config.js');
 const sync = require('./util/sync.js');
 const bridges = require('./util/bridges.js');
 const merkle = require('./util/merkle.js');
 const util = require('./util/util.js');
 const Log = require('./../log.js');
+const Peer = require('./Peer.js').Peer;
 const Wallet = require('./Wallet.js');
 let logger;
 
@@ -22,7 +24,8 @@ class Bridge {
     this.wallet = opts.wallet || new Wallet();
     logger.log('info', `Wallet setup: ${this.wallet.getAddress()}`)
     this.port = opts.port || 8000;
-    this.peers = opts.peers || [];
+    this.externalHost = opts.host || 'localhost';
+    this.peers = opts.peers || {};
     this.clients = opts.clients || [];
     this.index = opts.index || '';
     this.datadir = opts.datadir || `${process.cwd()}/data`;
@@ -45,7 +48,6 @@ class Bridge {
         logger.log('error', 'Server socket connection ended')
       });
       socket.on('data', (data) => {
-        console.log('socket data', data)
         this.handleMsg(data);
       });
     });
@@ -93,17 +95,20 @@ class Bridge {
                     const chain = this.addrs[j];
                     const lastBlock = bdata.lastBlocks[chain];
                     const currentBlock = parseInt(this.cache[j][this.cache[j].length - 2][1]);
-                    if (util.lastPowTwo(currentBlock - lastBlock) > this.proposeThreshold) {
+                    const start = lastBlock + 1;
+                    const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
+                    if (end - start > this.proposeThreshold) {
                       console.log('proposing!')
-                      this.getProposalRoot(chain, lastBlock + 1, currentBlock, (err, hRoot) => {
+                      this.getProposalRoot(chain, start, end, (err, hRoot) => {
                         if (err) { logger.log('warn', `Error getting proposal root: ${err}`); }
                         else {
                           const msg = {
                             type: 'SIGREQ',
+                            from: `${this.externalHost}:${this.port}`,
                             data: {
-                              chain: chain,
-                              start: lastBlock + 1,
-                              end: currentBlock,
+                              chain,
+                              start,
+                              end,
                               root: hRoot,
                             }
                           };
@@ -199,6 +204,14 @@ class Bridge {
     switch (msg.type) {
       case 'SIGREQ':
         console.log('signature request', msg);
+        this.verifyProposedRoot(msg.data, (err, sig) => {
+          if (err) { logger.log('warn', `Error with SIGREQ: ${err}`); }
+          else {
+            if (!this.peers[msg.from]) { this.addPeer(msg.from); }
+            msg.data.sig = sig;
+            this.broadcastMsg({ type: 'SIGPASS', data: msg.data });
+          }
+        })
         break;
       case 'SIGPASS':
         console.log('passing signature', msg);
@@ -216,10 +229,37 @@ class Bridge {
     }
   }
 
+  // With a SIGREQ, verify a proposed header root and return a signature
+  // if it metches your history
+  verifyProposedRoot(data, cb) {
+    if (util.lastPowTwo(data.end - data.start) != data.end - data.start) {
+      cb('Range not a power of two');
+    } else {
+      this.getProposalRoot(data.chain, data.start, data.end, (err, hRoot) => {
+        if (err) { cb(err); }
+        else if (hRoot != data.root) { cb('Roots do not match'); }
+        else {
+          const sig = this.wallet.sign(hRoot);
+          cb(null, sig);
+        }
+      })
+    }
+  }
+
+  addPeer(host) {
+    const params = host.split(':');
+    const peer = new Peer(params[0], params[1]);
+    peer.connect();
+    this.peers[host] = peer;
+    // Save the peer
+    config.addPeers([peer], this.datadir, this.index, () => {})
+  }
+
+  // Broadcast a message to all peers
   broadcastMsg(_msg) {
     const msg = JSON.stringify(_msg);
-    this.peers.forEach((peer) => {
-      peer.send('msg', msg);
+    Object.keys(this.peers).forEach((p) => {
+      this.peers[p].send('msg', msg);
     })
   }
 }

@@ -6,6 +6,7 @@ const net = require('net');
 const prompt = require('prompt');
 const config = require('./src/config.js');
 const Bridge = require('./src/lib/Bridge.js');
+const staking = require('./src/lib/util/staking.js');
 const util = require('./src/lib/util/util.js');
 const Peers = require('./src/peers.js');
 const Clients = require('./src/clients.js');
@@ -196,77 +197,11 @@ if (argv.stake) {
           else if (clients) {   // Not sure why, but sometimes clients is undefined
             client = clients[0];
             const from = wallet.getAddress();
-            let stakeToken;
             const gasPrice = argv.gasprice ? argv.gasprice : 1000000000;
-            let tx = {
-              gas: 500000,
-              gasPrice: gasPrice,
-              from: from,
-              to: argv.bridge,
-              data: `0xa694fc3a${leftPad(parseInt(argv.stake).toString(16), 64, '0')}`,
-              value: 0,
-            };
-            // Get staking token
-            const stakingCall = `0x51ed6a30`;
-            client.eth.call({ to: argv.bridge, data: stakingCall }, (err, token) => {
-              stakeToken = `0x${token.slice(26)}`;
-              // Approve token transfer if needed
-              const allowanceCall = `0xdd62ed3e${leftPad(from), 64, '0'}${leftPad(argv.to), 64, '0'}`;
-              client.eth.call({ to: stakeToken, data: allowanceCall}, (err, allowance) => {
-                if (parseInt(allowance) < parseInt(argv.stake)) {
-                  // Set an allowance
-                  const approveFor = leftPad(argv.bridge.slice(2), 64, '0');
-                  const approveAmt = leftPad(parseInt(argv.stake).toString(16), 64, '0');
-                  const approveData = `0x095ea7b3${approveFor}${approveAmt}`;
-                  const approveTx = {
-                    to: stakeToken,
-                    gasPrice: gasPrice,
-                    gas: 100000,
-                    data: approveData,
-                  };
-                  _approve(approveTx, wallet, client, (err) => {
-                    if (err) { console.log('Error approving', err); }
-                    else { _stake(tx, wallet, client); }
-                  })
-                } else {
-                  // Send tx
-                  _stake(tx, wallet, client);
-                }
-              })
-            })
+            console.log(`Staking ${argv.stake} tokens from ${from} on ${host}`)
+            staking.stake(argv.bridge, argv.stake, from, client, wallet, gasPrice);
           }
         })
-      }
-    })
-  })
-}
-
-
-function _approve(tx, wallet, client, cb) {
-  client.eth.getTransactionCount(tx.from, (err, nonce) => {
-    tx.nonce = nonce;
-    const signedTx = wallet.signTx(tx);
-    client.eth.sendSignedTransaction(signedTx, (err, h) => {
-      if (err) { cb(err); }
-      else {
-        client.eth.getTransactionReceipt(h, (err, receipt) => {
-          if (err) { cb(err); }
-          else if (receipt.logs.length < 1) { cb('Approval did not execute.'); }
-          else { cb(null); }
-        })
-      }
-    })
-  })
-}
-
-function _stake(tx, wallet, client) {
-  client.eth.getTransactionCount(tx.from, (err, nonce) => {
-    tx.nonce = nonce;
-    const signedTx = wallet.signTx(tx);
-    client.eth.sendSignedTransaction(signedTx, (err, receipt) => {
-      if (err) { console.log('Error staking', err); }
-      else {
-        console.log('receipt', receipt);
       }
     })
   })

@@ -15,7 +15,6 @@ exports.buildMerkleTree = buildMerkleTree;
 
 exports.getMerkleRoot = function(leaves) {
   const tree = buildMerkleTree(leaves);
-  console.log('tree', tree)
   return tree[tree.length - 1][0];
 }
 

@@ -1,13 +1,14 @@
 // Connect to and handle networks
 const fs = require('fs');
+const Peer = require('./lib/Peer.js').Peer;
 const jsonfile = require('jsonfile');
 
 // Network indexes are formatted `networkA_networkB` where each network is
 // represented by the address of the deployed bridge contract on the given
 // blockchain.
 exports.getNetIndex = function(networks) {
-  const tmpA = parseInt(networks[0]);
-  const tmpB = parseInt(networks[1]);
+  const tmpA = networks[0];
+  const tmpB = networks[1];
   if (tmpB > tmpA) { return `${tmpA}_${tmpB}`; }
   else { return `${tmpB}_${tmpA}`; }
 }
@@ -45,13 +46,12 @@ exports.addGroup = function(group, dir, cb) {
     addrB = group[1];
   }
   _ifExists(fPath, (err, data, exists) => {
+    console.log('data', data)
     if (err) { cb(err); }
     else {
       const i = `${addrA}_${addrB}`;
-      if (!exists) {
-        data = {};
-        data[i] = { };
-      };
+      if (!exists) { data = {}; };
+      data[i] = { };
       let isSaved = false;
       Object.keys(data).forEach((k) => {
         if (data[k].hostA == hostA && data[k].hostB == hostB && data[k].addrA == addrA && data[k].addrB == addrB) { isSaved = true; }
@@ -102,7 +102,12 @@ exports.getPeers = function(dir, index, cb) {
   _ifExists(fPath, (err, data, exists) => {
     if (err) { cb(err); }
     else if (!exists) { cb('No peers saved.'); }
-    else { cb(null, data[index].peers); }
+    else {
+      _loadPeers(data[index].peers, (err, peers) => {
+        if (err) { cb(err); }
+        else { cb(null, peers); }
+      })
+    }
   })
 }
 
@@ -138,4 +143,20 @@ function _ifExists(path, cb) {
     else if (err && err.code == 'ENOENT') { cb(null, {}, false); }
     else { cb(null, f, true); }
   })
+}
+
+function _loadPeers(hosts, cb, peers=[]) {
+  if (hosts.length == 0) { cb(null, peers.reverse()); }
+  else {
+    const host = hosts.pop();
+    const params = host.split(':');
+    const peer = new Peer(params[0], params[1]);
+    peer.on('connect', () => { console.log('#### peer connected'); })
+    peer.on('error', (e) => { console.log('peer error', e)})
+    peer.on('data', (d) => { console.log('peer data', d); })
+    peer.on('message', (d) => { console.log('peer message', d);})
+    peer.connect();
+    peers.push(peer);
+    _loadPeers(hosts, cb, peers);
+  }
 }

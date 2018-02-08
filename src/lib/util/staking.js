@@ -1,7 +1,7 @@
 // Functions for staking and destaking
 const leftPad = require('left-pad');
 
-exports.stake = function(bridge, amount, from, client, wallet, gasPrice=1000000000, gas=200000) {
+exports.stake = function(bridge, amount, from, client, wallet, gasPrice=1000000000, gas=500000) {
   let stakeToken;
   let tx = {
     gas: gas,
@@ -82,6 +82,7 @@ function _stake(tx, wallet, client, cb) {
       if (err) { console.log('Error staking', err); }
       else {
         client.eth.getTransactionReceipt(h, (err, receipt) => {
+          console.log('receipt', receipt);
           if (err) { cb(err); }
           else if (receipt.logs.length < 1) { cb('Stake did not execute'); }
           else { cb(null); }

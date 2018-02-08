@@ -29,6 +29,8 @@ const argv = require('yargs')
   .command('list-wallets', 'List indices for saved wallets')
   .command('proposal-threshold', 'Number of blocks that must elapse before you will propose a root. Must be a power of two. Default 512')
   .alias('t', 'threshold')
+  .command('wallet', 'Use wallet with supplied index. For a list of wallets, use --list-wallets')
+  .alias('w', 'wallet')
   .command('stake', 'Stake a specified number of tokens. Must be coupled with --bridge (address) and may be coupled with --gasprice')
   .command('bridge', 'Bridge to stake on. This is the address of the bridge contract. Must be part of a bridge you have previously saved.')
   .command('gasprice', 'Gas price to use when making a transaction')
@@ -47,7 +49,7 @@ if (!fs.existsSync(DIR)) { fs.mkdirSync(DIR); }
 Log.setLogger(DIR);
 
 // Numerical parameters/config
-let THRESH = 512;
+let THRESH = 4;
 if (argv['proposal-threshold']) { THRESH = util.lastPowTwo(argv['proposal-threshold']); }
 
 

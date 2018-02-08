@@ -2,6 +2,7 @@
 const crypto = require('crypto');
 const ethwallet = require('ethereumjs-wallet');
 const ethutil = require('ethereumjs-util');
+const ethtx = require('ethereumjs-tx');
 const fs = require('fs');
 const cipherAlgo = 'AES-256-CFB8';
 const jsonfile = require('jsonfile');
@@ -45,6 +46,13 @@ class Wallet {
   // Sign a message hash
   sign(h) {
     return ethutil.sign(h, this.wallet._privKey)
+  }
+
+  // Sign a transaction
+  signTx(txParams) {
+    const tx = new ethtx(txParams);
+    tx.sign(this.wallet.getPrivateKey());
+    return `0x${tx.serialize().toString('hex')}`;
   }
 }
 

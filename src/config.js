@@ -116,6 +116,22 @@ exports.getHosts = function(dir, index, cb) {
   })
 }
 
+exports.getAllHosts = function(dir, cb) {
+  const fPath = `${dir}/config.json`;
+  _ifExists(fPath, (err, data, exists) => {
+    if (err) { cb(err); }
+    else if (!exists) { cb('No hosts saved.'); }
+    else {
+      let hosts = [];
+      Object.keys(data).forEach((d) => {
+        hosts.push([data[d].addrA, data[d].hostA]);
+        hosts.push([data[d].addrB, data[d].hostB]);
+      })
+      cb(null, hosts);
+    }
+  })
+}
+
 function _ifExists(path, cb) {
   jsonfile.readFile(path, (err, f) => {
     if (err && err.code != 'ENOENT') { cb(err); }

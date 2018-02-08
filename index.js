@@ -1,6 +1,7 @@
 // Start your server and connect to peers
 const fs = require('fs');
 const jsonfile = require('jsonfile');
+const leftPad = require('left-pad');
 const net = require('net');
 const prompt = require('prompt');
 const config = require('./src/config.js');
@@ -27,6 +28,9 @@ const argv = require('yargs')
   .command('list-wallets', 'List indices for saved wallets')
   .command('proposal-threshold', 'Number of blocks that must elapse before you will propose a root. Must be a power of two. Default 512')
   .alias('t', 'threshold')
+  .command('stake', 'Stake a specified number of tokens. Must be coupled with --bridge (address) and may be coupled with --gasprice')
+  .command('bridge', 'Bridge to stake on. This is the address of the bridge contract. Must be part of a bridge you have previously saved.')
+  .command('gasprice', 'Gas price to use when making a transaction')
   .argv;
 
 console.log('Bridge Client v0.1\n')
@@ -169,6 +173,105 @@ function start() {
     })
   })
 };
+
+// Stake tokens
+if (argv.stake) {
+  if (isNaN(parseInt(argv.stake))) { console.log('Please supply an integer to --stake')}
+  if (!argv.bridge) { console.log('You must specify a bridge address (--bridge) if you wish to stake tokens'); }
+  if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
+    console.log("No wallet detected. Create one with --create-wallet");
+  }
+  const walletIndex = argv.wallet ? argv.wallet : 0;
+  const path = `${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[parseInt(walletIndex)]}`;
+  _unlockWallet(path, (wallet) => {
+    config.getAllHosts(DIR, (err, hosts) => {
+      let host;
+      let client;
+      hosts.forEach((h) => { if (h[0] == argv.bridge) { host = h[1]; } })
+      if (!host) { console.log('Bridge not found. You can add a bridge with --add'); }
+      else {
+        // Connect to the client
+        Clients.connectToClients([host], (err, clients) => {
+          if (err) { console.log('Error connecting to clients', err); }
+          else if (clients) {   // Not sure why, but sometimes clients is undefined
+            client = clients[0];
+            const from = wallet.getAddress();
+            let stakeToken;
+            const gasPrice = argv.gasprice ? argv.gasprice : 1000000000;
+            let tx = {
+              gas: 500000,
+              gasPrice: gasPrice,
+              from: from,
+              to: argv.bridge,
+              data: `0xa694fc3a${leftPad(parseInt(argv.stake).toString(16), 64, '0')}`,
+              value: 0,
+            };
+            // Get staking token
+            const stakingCall = `0x51ed6a30`;
+            client.eth.call({ to: argv.bridge, data: stakingCall }, (err, token) => {
+              stakeToken = `0x${token.slice(26)}`;
+              // Approve token transfer if needed
+              const allowanceCall = `0xdd62ed3e${leftPad(from), 64, '0'}${leftPad(argv.to), 64, '0'}`;
+              client.eth.call({ to: stakeToken, data: allowanceCall}, (err, allowance) => {
+                if (parseInt(allowance) < parseInt(argv.stake)) {
+                  // Set an allowance
+                  const approveFor = leftPad(argv.bridge.slice(2), 64, '0');
+                  const approveAmt = leftPad(parseInt(argv.stake).toString(16), 64, '0');
+                  const approveData = `0x095ea7b3${approveFor}${approveAmt}`;
+                  const approveTx = {
+                    to: stakeToken,
+                    gasPrice: gasPrice,
+                    gas: 100000,
+                    data: approveData,
+                  };
+                  _approve(approveTx, wallet, client, (err) => {
+                    if (err) { console.log('Error approving', err); }
+                    else { _stake(tx, wallet, client); }
+                  })
+                } else {
+                  // Send tx
+                  _stake(tx, wallet, client);
+                }
+              })
+            })
+          }
+        })
+      }
+    })
+  })
+}
+
+
+function _approve(tx, wallet, client, cb) {
+  client.eth.getTransactionCount(tx.from, (err, nonce) => {
+    tx.nonce = nonce;
+    const signedTx = wallet.signTx(tx);
+    client.eth.sendSignedTransaction(signedTx, (err, h) => {
+      if (err) { cb(err); }
+      else {
+        client.eth.getTransactionReceipt(h, (err, receipt) => {
+          if (err) { cb(err); }
+          else if (receipt.logs.length < 1) { cb('Approval did not execute.'); }
+          else { cb(null); }
+        })
+      }
+    })
+  })
+}
+
+function _stake(tx, wallet, client) {
+  client.eth.getTransactionCount(tx.from, (err, nonce) => {
+    tx.nonce = nonce;
+    const signedTx = wallet.signTx(tx);
+    client.eth.sendSignedTransaction(signedTx, (err, receipt) => {
+      if (err) { console.log('Error staking', err); }
+      else {
+        console.log('receipt', receipt);
+      }
+    })
+  })
+}
+
 
 // Given a seed (saved in a wallet file), rehydrate a wallet with a password
 function _unlockWallet(path, cb) {

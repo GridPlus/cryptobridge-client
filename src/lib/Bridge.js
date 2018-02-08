@@ -30,6 +30,8 @@ class Bridge {
     this.index = opts.index || '';
     this.datadir = opts.datadir || `${process.cwd()}/data`;
     this.addrs = this.index.split('_');
+    // Collected signatures. Indexed as (chainToPropose -> bridgedChain -> signer -> sig)
+    this.sigs = {};
     // Number of blocks to wait to propose
     this.proposeThreshold = opts.proposeThreshold || 4;
     // Header data (number, timestamp, prevHeader, txRoot, receiptsRoot) is
@@ -199,32 +201,48 @@ class Bridge {
 
   // Handle an incoming socket message
   handleMsg(data) {
-    console.log('got data')
     const msg = JSON.parse(data.toString('utf8'));
     switch (msg.type) {
       case 'SIGREQ':
-        console.log('signature request', msg);
         this.verifyProposedRoot(msg.data, (err, sig) => {
           if (err) { logger.log('warn', `Error with SIGREQ: ${err}`); }
           else {
-            if (!this.peers[msg.from]) { this.addPeer(msg.from); }
+            console.log('got sig', 'peer', this.peers[msg.from])
+            if (!this.peers[msg.from] || this.peers[msg.from].state == 'closed') { this.addPeer(msg.from); }
             msg.data.sig = sig;
+            console.log('broadcasting sig', msg.data)
             this.broadcastMsg({ type: 'SIGPASS', data: msg.data });
           }
-        })
+        });
         break;
       case 'SIGPASS':
-        console.log('passing signature', msg);
-        // signatures.saveSig()
-        break;
-      case 'PROP':
-        console.log('new proposer', msg);
+        let client;
+        // This header root can potentially be proposed to any chain that is not
+        // the one it originates from. Check if the signature was made by someone
+        // who is a validator on each chain.
+        this.addrs.forEach((addr, i) => {
+          if (addr != msg.data.chain) {
+            client = this.clients[i];
+            const chain = msg.data.chain;
+            // Check if this is a validator on the desired chain. If so, save
+            // the signature
+            bridges.checkSig(msg.data.root, msg.data.sig, addr, client, (err, signer) => {
+              if (signer) {
+                if (!this.sigs[addr]) { this.sigs[addr] = {}; }
+                if (!this.sigs[addr][chain]) { this.sigs[addr][chain] = {}; }
+                if (!this.sigs[addr][chain][signer]) { this.sigs[addr][chain][signer] = {}; }
+                this.sigs[addr][msg.data.chain][signer] = msg.data.sig;
+                console.log('this.sigs', this.sigs)
+              }
+            })
+          }
+        })
         break;
       case 'PEERSREQ':
         console.log('someone asking for peers list', msg);
         break;
       default:
-        console.log('got ping', msg);
+        logger.log('info', `Got msg with no type: ${msg}`)
         break;
     }
   }
@@ -259,7 +277,9 @@ class Bridge {
   broadcastMsg(_msg) {
     const msg = JSON.stringify(_msg);
     Object.keys(this.peers).forEach((p) => {
-      this.peers[p].send('msg', msg);
+      if (this.peers[p].state == 'connected') {
+        this.peers[p].send('msg', msg);
+      }
     })
   }
 }

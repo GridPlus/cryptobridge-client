@@ -46,7 +46,13 @@ class Wallet {
   // Sign a message hash
   sign(h) {
     if (h.substr(0, 2) == '0x') { h = h.slice(2); }
-    return ethutil.ecsign(Buffer.from(h, 'hex'), this.wallet._privKey)
+    const _sig = ethutil.ecsign(Buffer.from(h, 'hex'), this.wallet._privKey)
+    let sig = {
+      r: _sig.r.toString('hex'),
+      s: _sig.s.toString('hex'),
+      v: _sig.v
+    };
+    return sig;
   }
 
   // Sign a transaction

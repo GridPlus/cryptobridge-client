@@ -12,7 +12,7 @@ The bridge client maintains connections with peers and has the ability to propos
 
 The bridge client runs as a p2p daemon, but also has the ability to create wallets and stake tokens onto a given bridge. This section covers the command line API.
 
-### --add <string>,<string>,<string>,<string>
+#### --add (string),(string),(string),(string)
 
 Add a bridge of form `<network_a_host>,<network_a_address>,<network_b_host>,<network_b_address>` to your configuration (it will be persisted). Networks A and B are associated with addresses A and B, where `network` is formatted as a socket host (e.g. `http://localhost:8000`) and `address` is the bridge contract address on the associated network.
 
@@ -22,7 +22,7 @@ client --add http://localhost:7545,0x27fa13e74d1aff21d18119053fbbe1b7e10ba0d0,ht
 ```
 *This API function is pretty bad. I'll clean it up in future versions.*
 
-### --bootstrap <string>,<string>,...,<string>
+#### --bootstrap (string),(string),...,(string)
 
 Add peers to your bridge config file. These will be persisted. You may supply any number of hosts.
 
@@ -31,11 +31,11 @@ Example:
 client --bootstrap http://localhost:7545,http://localhost:8545
 ```
 
-### --datadir <string>
+#### --datadir (string)
 
 Specify the location of your data (wallets, config, header data).
 
-### --network <string>
+#### --network (string)
 
 Specify which bridge you want to use. To use this option, you must use it *twice*, once per bridge contract address.
 
@@ -44,11 +44,11 @@ Example:
 client --network 0x27fa13e74d1aff21d18119053fbbe1b7e10ba0d0 --network 0xb85cae815b3f05b0c8c8f277312dba1f747d3171
 ```
 
-### --wallet <int>
+#### --wallet (int)
 
 Use wallet in specified index. To get indices, see `--list-wallets`. If no bridge is supplied with `--network` flags, the default bridge is assumed.
 
-### --start <int>
+#### --start (int)
 
 Start the client.
 
@@ -57,27 +57,27 @@ Defaults:
 * If `--network` flags are not used, the default bridge will be used
 * If no `--wallet` is specified, wallet with index 0 will be used
 
-### --create-wallet
+#### --create-wallet
 
 Enter interactive interface to create a wallet.
 
-### --list-wallets
+#### --list-wallets
 
 List wallet indices and corresponding account addresses.
 
-### --proposal-threshold <int>
+#### --proposal-threshold (int)
 
 Specify the number of blocks that must elapse before you propose a header root. (Default `512`).
 
-### --stake <int>
+#### --stake (int)
 
 Stake a specified number of tokens. Must be coupled with `--bridge` option. If no `--wallet` is selected, `wallets[0]` will be selected by default.
 
-### --bridge <string>
+#### --bridge (string)
 
 Address of the bridge contract on which you wish to stake. Must be combined with `--stake` option.
 
-### --gasprice <int>
+#### --gasprice (int)
 
 Gasprice to use with all transactions. Default `1000000000`.
 

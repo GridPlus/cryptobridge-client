@@ -90,6 +90,7 @@ class Bridge {
             setInterval(() => {
               const bdata = this.bridgeData[this.addrs[i]];
               if (bdata.proposer == this.wallet.getAddress()) {
+                console.log('im the proposer')
                 this.getRootsAndBroadcast(i);
               }
             }, opts.queryDelay || 1000);
@@ -126,10 +127,12 @@ class Bridge {
   // Get current data on the bridges
   getBridgeData(queryAddr, bridgedAddr, client, cb) {
     bridges.getLastBlock(queryAddr, bridgedAddr, client, (err, lastBlock) => {
+      console.log('lastBlock', lastBlock)
       if (err) { cb(err); }
       else {
         this.bridgeData[queryAddr].lastBlocks[bridgedAddr] = lastBlock;
         bridges.getProposer(queryAddr, client, (err, proposer) => {
+          console.log('proposer', proposer)
           if (err) { cb(err); }
           else {
             this.bridgeData[queryAddr].proposer = proposer;
@@ -142,6 +145,7 @@ class Bridge {
   // Check the signature counts for each saved chain. Propose a root if a
   // threshold is met. If the proposal goes through, wipe all sigs from memory.
   tryPropose() {
+    console.log('trying to propose')
     this.addrs.forEach((bridge, i) => {
       bridges.getThreshold(bridge, this.clients[i], (err, thresh) => {
         if (this.sigs[bridge] != undefined) {
@@ -157,7 +161,14 @@ class Bridge {
               };
             });
             if (checkedSigs.length >= thresh) {
-              bridges.propose(checkedSigs, bridge, mappedChain, this.clients[i]);
+              //sigs, bridge, mappedChain, wallet, client, cb, gasPrice=1000000000)
+              bridges.propose(checkedSigs, bridge, mappedChain, this.wallet, this.clients[i],
+                (err, res) => {
+                  if (err) { console.log(`Error sending proposal: ${err}`); }
+                  else {
+
+                  }
+              }, this.gasPrice);
             }
           })
         }
@@ -185,6 +196,7 @@ class Bridge {
                 from: `${this.externalHost}:${this.port}`,
                 data: { chain, start, end, root: hRoot }
               };
+              console.log('broadcasting', msg)
               this.broadcastMsg(msg)
             }
           })

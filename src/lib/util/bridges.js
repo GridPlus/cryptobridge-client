@@ -1,7 +1,6 @@
 // Formatted calls to the bridge contracts
 const leftPad = require('left-pad');
 const ethutil = require('ethereumjs-util');
-const abi = require('ethereumjs-abi');
 
 // Get the block corresponding to the last block header Merkle root committed
 // to the chain. queryAddr is the address of the bridge contract on the chain
@@ -32,16 +31,43 @@ exports.getThreshold = function(bridge, client, cb) {
   })
 }
 
-exports.propose = function(sigs, bridge, mappedChain, client, cb) {
+exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPrice=1000000000) {
+  const from = wallet.getAddress();
   let sigData = '0x';
   Object.keys(sigs).forEach((i) => {
     sigData += `${sigs[i].sig.r}${sigs[i].sig.s}${leftPad(sigs[i].sig.v.toString(16), 64, '0')}`;
   })
   const encSigs = client.eth.abi.encodeParameter('bytes', sigData)
-  console.log('sigs', sigs)
   let data = `0x${sigs[0].root.slice(2)}${leftPad(mappedChain.slice(2), 64, '0')}`
   data = `${data}${leftPad(sigs[0].end.toString(16), 64, '0')}${encSigs.slice(2)}`;
-  console.log('data', data)
+
+  _checkSigsContract(sigs[0].root.slice(2), mappedChain, sigs[0].start, sigs[0].end,
+  sigData, bridge, client, (err, success)=> {
+    /*
+    client.eth.getTransactionCount(from, (err, nonce) => {
+      console.log('nonce', nonce)
+      const tx = {
+        to: bridge,
+        from: wallet.getAddress(),
+        data: data,
+        gasPrice: gasPrice,
+        gas: 500000,
+        nonce: nonce,
+      };
+      console.log('tx', tx)
+      const signedTx = wallet.signTx(tx);
+      client.eth.sendSignedTransaction(signedTx, (err, h) => {
+        if (err) { cb(err); }
+        else {
+          console.log('sent propose', h)
+        }
+      })
+    })
+
+    */
+  })
+
+
 }
 
 
@@ -60,6 +86,16 @@ exports.checkSig = function(h, sig, bridge, client, cb) {
     if (err) { cb(err); }
     else if (parseInt(stake) == 0) { cb(null, null); }
     else { cb(null, `0x${signer.toString('hex')}`); }
+  })
+}
+
+//checkSignatures(bytes32 root, address chain, uint256 start, uint256 end,bytes sigs)
+function _checkSigsContract(hRoot, chain, start, end, sigData, bridge, client, cb) {
+  let data = `0x${hRoot.slice(2)}${leftPad(chain.slice(2), 64, '0')}`;
+  data = `${data}${leftPad(start.toString(16), 64, '0')}`;
+  data = `${data}${leftPad(end.toString(16), 64, '0')}${sigData.slice(2)}`;
+  client.eth.call({ to: bridge, data: data }, (err, success) => {
+    console.log('err', err, 'success', success)
   })
 }
 

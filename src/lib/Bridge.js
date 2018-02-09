@@ -79,7 +79,6 @@ class Bridge {
                 if (err) { logger.log('warn', `ERROR: ${err}`); }
               });
             }
-
             // Continue syncing periodically
             setInterval(() => {
               this.sync(this.addrs[i], this.cache[i], this.clients[i], (err, newCache) => {
@@ -87,39 +86,11 @@ class Bridge {
                 this.cache[i] = newCache;
               })
             }, opts.queryDelay || 1000);
-
             // Do stuff if you're the proposer
             setInterval(() => {
               const bdata = this.bridgeData[this.addrs[i]];
               if (bdata.proposer == this.wallet.getAddress()) {
-                for (let j = 0; j < NCHAINS; j++) {
-                  if (i != j) {
-                    const chain = this.addrs[j];
-                    const lastBlock = bdata.lastBlocks[chain];
-                    const currentBlock = parseInt(this.cache[j][this.cache[j].length - 2][1]);
-                    const start = lastBlock + 1;
-                    const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
-                    if (end - start > this.proposeThreshold) {
-                      console.log('proposing!')
-                      this.getProposalRoot(chain, start, end, (err, hRoot) => {
-                        if (err) { logger.log('warn', `Error getting proposal root: ${err}`); }
-                        else {
-                          const msg = {
-                            type: 'SIGREQ',
-                            from: `${this.externalHost}:${this.port}`,
-                            data: {
-                              chain,
-                              start,
-                              end,
-                              root: hRoot,
-                            }
-                          };
-                          this.broadcastMsg(msg)
-                        }
-                      })
-                    }
-                  }
-                }
+                this.getRootsAndBroadcast(i);
               }
             }, opts.queryDelay || 1000);
           })
@@ -161,11 +132,65 @@ class Bridge {
         bridges.getProposer(queryAddr, client, (err, proposer) => {
           if (err) { cb(err); }
           else {
-            this.bridgeData[queryAddr].proposer = `0x${proposer.slice(26)}`;
+            this.bridgeData[queryAddr].proposer = proposer;
           }
         })
       }
     })
+  }
+
+  // Check the signature counts for each saved chain. Propose a root if a
+  // threshold is met. If the proposal goes through, wipe all sigs from memory.
+  tryPropose() {
+    this.addrs.forEach((bridge, i) => {
+      bridges.getThreshold(bridge, this.clients[i], (err, thresh) => {
+        if (this.sigs[bridge] != undefined) {
+          Object.keys(this.sigs[bridge]).forEach((mappedChain) => {
+            let end = 0;
+            let start = 0;
+            let checkedSigs = [];
+            let sigs = this.sigs[bridge][mappedChain];
+            Object.keys(sigs).forEach((i) => {
+              if (sigs[i].end > end) {
+                end = sigs[i].end; start = sigs[i].start;
+                checkedSigs.push(sigs[i]);
+              };
+            });
+            if (checkedSigs.length >= thresh) {
+              bridges.propose(checkedSigs, bridge, mappedChain, this.clients[i]);
+            }
+          })
+        }
+      })
+    })
+  }
+
+  // Get roots for all saved, bridged chains that are not this one. Broadcast
+  // any roots that meet your criteria for blocks elapsed
+  getRootsAndBroadcast(i) {
+    const bdata = this.bridgeData[this.addrs[i]];
+    for (let j = 0; j < NCHAINS; j++) {
+      if (i != j) {
+        const chain = this.addrs[j];
+        const lastBlock = bdata.lastBlocks[chain];
+        const currentBlock = parseInt(this.cache[j][this.cache[j].length - 2][1]);
+        const start = lastBlock + 1;
+        const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
+        if (end - start > this.proposeThreshold) {
+          this.getProposalRoot(chain, start, end, (err, hRoot) => {
+            if (err) { logger.log('warn', `Error getting proposal root: ${err}`); }
+            else {
+              const msg = {
+                type: 'SIGREQ',
+                from: `${this.externalHost}:${this.port}`,
+                data: { chain, start, end, root: hRoot }
+              };
+              this.broadcastMsg(msg)
+            }
+          })
+        }
+      }
+    }
   }
 
   /*propose(queryAddr, bridgedAddr, client, cb) {
@@ -231,8 +256,8 @@ class Bridge {
                 if (!this.sigs[addr]) { this.sigs[addr] = {}; }
                 if (!this.sigs[addr][chain]) { this.sigs[addr][chain] = {}; }
                 if (!this.sigs[addr][chain][signer]) { this.sigs[addr][chain][signer] = {}; }
-                this.sigs[addr][msg.data.chain][signer] = msg.data.sig;
-                console.log('this.sigs', this.sigs)
+                this.sigs[addr][msg.data.chain][signer] = msg.data;
+                this.tryPropose();
               }
             })
           }

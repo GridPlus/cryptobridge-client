@@ -127,12 +127,10 @@ class Bridge {
   // Get current data on the bridges
   getBridgeData(queryAddr, bridgedAddr, client, cb) {
     bridges.getLastBlock(queryAddr, bridgedAddr, client, (err, lastBlock) => {
-      console.log('lastBlock', lastBlock)
       if (err) { cb(err); }
       else {
         this.bridgeData[queryAddr].lastBlocks[bridgedAddr] = lastBlock;
         bridges.getProposer(queryAddr, client, (err, proposer) => {
-          console.log('proposer', proposer)
           if (err) { cb(err); }
           else {
             this.bridgeData[queryAddr].proposer = proposer;
@@ -180,7 +178,7 @@ class Bridge {
       if (i != j) {
         const chain = this.addrs[j];
         const lastBlock = bdata.lastBlocks[chain];
-        const currentBlock = parseInt(this.cache[j][this.cache[j].length - 2][1]);
+        const currentBlock = parseInt(this.cache[j][this.cache[j].length - 1][0]);
         const start = lastBlock + 1;
         const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
         if (end - start > this.proposeThreshold) {
@@ -200,26 +198,9 @@ class Bridge {
     }
   }
 
-  /*propose(queryAddr, bridgedAddr, client, cb) {
-    const d = this.bridgeData[queryAddr][bridgedAddr];
-    const currentN = this.cache[this.cache.length - 1].n;
-    if (d.proposer != this.wallet.getAddress() || this.proposeThreshold - 1 > currentN - d.lastBlock) {
-      // Do nothing if you're not the propose and/or not enough blocks have elapsed
-      cb(null, null);
-    } else {
-      // Get the root
-      const range = util.lastPowTwo(currentN - d.lastBlock - 1);
-      console.log('range', range)
-      getProposalRoot(queryAddr, d.lastBlock + 1, d.lastBlock + 1 + range, (err, headerRoot) => {
-        // Broadcast root with metadata to all known peers
-      })
-    }
-  }*/
-
   // If this client is elected as the proposer, get the relevant data and form
   // the block header Merkle root.
   getProposalRoot(chain, startBlock, endBlock, cb) {
-    console.log('startBlock', startBlock, 'endBlock', endBlock)
     sync.loadHeaders(startBlock, endBlock, `${this.datadir}/${chain}/headers`, (err, headers, n) => {
       if (n < endBlock) { cb('Not synced to that block. Try again later.'); }
       else {
@@ -229,8 +210,6 @@ class Bridge {
     })
   }
 
-
-
   // Handle an incoming socket message
   handleMsg(data) {
     const msg = JSON.parse(data.toString('utf8'));
@@ -239,10 +218,8 @@ class Bridge {
         this.verifyProposedRoot(msg.data, (err, sig) => {
           if (err) { logger.log('warn', `Error with SIGREQ: ${err}`); }
           else {
-            console.log('got sig', 'peer', this.peers[msg.from])
             if (!this.peers[msg.from] || this.peers[msg.from].state == 'closed') { this.addPeer(msg.from); }
             msg.data.sig = sig;
-            console.log('broadcasting sig', msg.data)
             this.broadcastMsg({ type: 'SIGPASS', data: msg.data });
           }
         });

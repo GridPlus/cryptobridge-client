@@ -36,7 +36,6 @@ exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPri
   const from = wallet.getAddress();
   let sigData = '0x';
   Object.keys(sigs).forEach((i) => {
-    console.log('\nsig', sigs[i], '\n')
     sigData += `${leftPad(sigs[i].sig.r, 64, '0')}${leftPad(sigs[i].sig.s, 64, '0')}${leftPad(sigs[i].sig.v.toString(16), 64, '0')}`;
   })
   // Ensure there are enough signatures from stakers to meet the threshold
@@ -65,7 +64,6 @@ exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPri
           gas: 500000,
           nonce: nonce,
         };
-        console.log('tx', tx)
         const signedTx = wallet.signTx(tx);
         // Send the proposal tx!
         client.eth.sendSignedTransaction(signedTx, (err, h) => {
@@ -120,7 +118,6 @@ function _checkSigsContract(hRoot, chain, start, end, sigData, bridge, client, c
     [ hRoot, chain, start, end, sigData ]
   )
   client.eth.call({ to: bridge, data: call }, (err, nSigs) => {
-    console.log('nSigs', nSigs)
     if (err) { cb(err); }
     else {
       getThreshold(bridge, client, (err, thresh) => {

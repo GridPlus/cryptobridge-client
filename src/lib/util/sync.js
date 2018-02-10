@@ -34,8 +34,7 @@ lastHeader=`0x${leftPad(0, 64, '0')}`) {
   if (currentBlockN == lastBlockN) {
     fStream.end(_stringify(cache));
     cb(null, _zipCache(cache));
-  }
-  else {
+  } else {
     client.eth.getBlock(lastBlockN + 1, (err, block) => {
       if (err) { cb(err); }
       else {
@@ -69,16 +68,18 @@ exports.loadHeaders = function(startN, endN, fPath, cb) {
   reader.on('error', (err) => { cb(err); reader.close(); })
   reader.on('line', (_line) => {
     line = _line.split(',').splice(1); // Every line has a leading comma
-    if (line[0] + 99 > startN) {       // 100 items per line
+    if (parseInt(line[0]) + 99 > parseInt(startN)) {       // 100 items per line
       for (let i = 0; i < line.length; i += 5) {
         if (line[i] >= startN && line[i] <= endN) {
           // Save the header if we are in the range of desired values
           headers.push(line[i + 4]);
           lastN = line[i];
-        } else {
+        } else if (line[i] > endN){
           reader.close();
         }
       }
+    } else {
+      reader.close()
     }
   })
   reader.on('close', () => { cb(null, headers, lastN); })
@@ -96,15 +97,15 @@ function _stringify(data) {
 function _zipCache(data) {
   let c = [];
   data.forEach((d) => {
-    c.push([ d.n, d.timestamp, d.transactionsRoot, d.receiptsRoot ]);
+    c.push([ d.n, d.timestamp, d.transactionsRoot, d.receiptsRoot, d.header ]);
   })
   return c;
 }
 
 function _zipLineToCache(line) {
   let c = [];
-  for (let i = 0; i < line.length; i += 4) {
-    c.push([ line[i], line[i + 1], line[i + 2], line[i + 3] ]);
+  for (let i = 0; i < line.length; i += 5) {
+    c.push([ line[i], line[i + 1], line[i + 2], line[i + 3], line[i + 4] ]);
   }
   return c;
 }

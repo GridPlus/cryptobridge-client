@@ -35,14 +35,15 @@ exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPri
   const from = wallet.getAddress();
   let sigData = '0x';
   Object.keys(sigs).forEach((i) => {
-    sigData += `${sigs[i].sig.r}${sigs[i].sig.s}${leftPad(sigs[i].sig.v.toString(16), 64, '0')}`;
+    console.log('\nsig', sigs[i], '\n')
+    sigData += `${leftPad(sigs[i].sig.r, 64, '0')}${leftPad(sigs[i].sig.s, 64, '0')}${leftPad(sigs[i].sig.v.toString(16), 64, '0')}`;
   })
-  const encSigs = client.eth.abi.encodeParameter('bytes', sigData)
+  const encSigs = client.eth.abi.encodeParameter('bytes', '0x1244');//sigData)
   let data = `0x${sigs[0].root.slice(2)}${leftPad(mappedChain.slice(2), 64, '0')}`
   data = `${data}${leftPad(sigs[0].end.toString(16), 64, '0')}${encSigs.slice(2)}`;
 
-  _checkSigsContract(sigs[0].root.slice(2), mappedChain, sigs[0].start, sigs[0].end,
-  sigData, bridge, client, (err, success)=> {
+  _checkSigsContract(sigs[0].root, mappedChain, sigs[0].start, sigs[0].end,
+  encSigs, bridge, client, (err, success) => {
     /*
     client.eth.getTransactionCount(from, (err, nonce) => {
       console.log('nonce', nonce)
@@ -73,7 +74,6 @@ exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPri
 
 // Check if a signature was made by a validator
 exports.checkSig = function(h, sig, bridge, client, cb) {
-  console.log('r', sig.r, 's', sig.s, 'v', sig.v, 'h', h)
   const msg = Buffer.from(h.slice(2), 'hex');
   const r = Buffer.from(sig.r, 'hex');
   const s = Buffer.from(sig.s, 'hex');
@@ -89,12 +89,26 @@ exports.checkSig = function(h, sig, bridge, client, cb) {
   })
 }
 
-//checkSignatures(bytes32 root, address chain, uint256 start, uint256 end,bytes sigs)
+//checkSignatures(bytes32,address,uint256,uint256,bytes)
 function _checkSigsContract(hRoot, chain, start, end, sigData, bridge, client, cb) {
-  let data = `0x${hRoot.slice(2)}${leftPad(chain.slice(2), 64, '0')}`;
-  data = `${data}${leftPad(start.toString(16), 64, '0')}`;
-  data = `${data}${leftPad(end.toString(16), 64, '0')}${sigData.slice(2)}`;
-  client.eth.call({ to: bridge, data: data }, (err, success) => {
+  console.log('\nhroot', hRoot)
+  console.log('chain', chain)
+  console.log('start', start)
+  console.log('end', end)
+  console.log('sigData', sigData)
+  let call = client.eth.abi.encodeFunctionCall({
+    name: 'checkSignatures',
+    type: 'function',
+    inputs: [
+      { type: 'bytes32', name: 'root'},
+      { type: 'address', name: 'chain' },
+      { type: 'uint256', name: 'start' },
+      { type: 'uint256', name: 'end' },
+      { type: 'bytes', name: 'sigs' }
+    ]},
+    [ hRoot, chain, start, end, sigData ]
+  )
+  client.eth.call({ to: bridge, data: call }, (err, success) => {
     console.log('err', err, 'success', success)
   })
 }

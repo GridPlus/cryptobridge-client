@@ -47,7 +47,6 @@ lastHeader=`0x${leftPad(0, 64, '0')}`) {
         };
         item.header = _hashHeader(item.n, lastHeader, item.timestamp,
           item.transactionsRoot, item.receiptsRoot);
-        console.log('item', item)
         cache.push(item);
         if (cache.length > 100) {
           // Write chunks of 100, but make sure the cache has at least one value

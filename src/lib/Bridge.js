@@ -145,7 +145,6 @@ class Bridge {
   // Check the signature counts for each saved chain. Propose a root if a
   // threshold is met. If the proposal goes through, wipe all sigs from memory.
   tryPropose() {
-    console.log('trying to propose')
     this.addrs.forEach((bridge, i) => {
       bridges.getThreshold(bridge, this.clients[i], (err, thresh) => {
         if (this.sigs[bridge] != undefined) {
@@ -196,7 +195,6 @@ class Bridge {
                 from: `${this.externalHost}:${this.port}`,
                 data: { chain, start, end, root: hRoot }
               };
-              console.log('broadcasting', msg)
               this.broadcastMsg(msg)
             }
           })

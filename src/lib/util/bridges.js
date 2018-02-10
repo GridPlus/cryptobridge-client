@@ -23,13 +23,14 @@ exports.getProposer = function(queryAddr, client, cb) {
 }
 
 // Get the validator threshold for a bridge
-exports.getThreshold = function(bridge, client, cb) {
+function getThreshold(bridge, client, cb) {
   const data = GET_THRESHOLD_ABI;
   client.eth.call({ to: bridge, data: data }, (err, res) => {
     if (err) { cb(err); }
     else { cb(null, parseInt(res)); }
   })
 }
+exports.getThreshold = getThreshold;
 
 exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPrice=1000000000) {
   const from = wallet.getAddress();
@@ -38,34 +39,48 @@ exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPri
     console.log('\nsig', sigs[i], '\n')
     sigData += `${leftPad(sigs[i].sig.r, 64, '0')}${leftPad(sigs[i].sig.s, 64, '0')}${leftPad(sigs[i].sig.v.toString(16), 64, '0')}`;
   })
-  const encSigs = client.eth.abi.encodeParameter('bytes', '0x1244');//sigData)
-  let data = `0x${sigs[0].root.slice(2)}${leftPad(mappedChain.slice(2), 64, '0')}`
-  data = `${data}${leftPad(sigs[0].end.toString(16), 64, '0')}${encSigs.slice(2)}`;
-
+  // Ensure there are enough signatures from stakers to meet the threshold
   _checkSigsContract(sigs[0].root, mappedChain, sigs[0].start, sigs[0].end,
-  encSigs, bridge, client, (err, success) => {
-    /*
-    client.eth.getTransactionCount(from, (err, nonce) => {
-      console.log('nonce', nonce)
-      const tx = {
-        to: bridge,
-        from: wallet.getAddress(),
-        data: data,
-        gasPrice: gasPrice,
-        gas: 500000,
-        nonce: nonce,
-      };
-      console.log('tx', tx)
-      const signedTx = wallet.signTx(tx);
-      client.eth.sendSignedTransaction(signedTx, (err, h) => {
-        if (err) { cb(err); }
-        else {
-          console.log('sent propose', h)
-        }
+  sigData, bridge, client, (err, success) => {
+    if (err) { cb(err); }
+    else {
+      // Get the nonce, form the transaction, and propose the root.
+      client.eth.getTransactionCount(from, (err, nonce) => {
+        const data = client.eth.abi.encodeFunctionCall({
+          name: 'proposeRoot',
+          type: 'function',
+          inputs: [
+            { type: 'bytes32', name: 'headerRoot'},
+            { type: 'address', name: 'chainId' },
+            { type: 'uint256', name: 'end' },
+            { type: 'bytes', name: 'sigs' }
+          ]},
+          [ sigs[0].root, mappedChain, sigs[0].end, sigData ]
+        )
+        const tx = {
+          to: bridge,
+          from: wallet.getAddress(),
+          data: data,
+          gasPrice: gasPrice,
+          gas: 500000,
+          nonce: nonce,
+        };
+        console.log('tx', tx)
+        const signedTx = wallet.signTx(tx);
+        // Send the proposal tx!
+        client.eth.sendSignedTransaction(signedTx, (err, h) => {
+          if (err) { cb(err); }
+          else {
+            // Make sure it went through (it will emit a log)
+            _checkReceiptLogs(1, h, client, (err, success) => {
+              if (err) { cb(err); }
+              else if (!success) { cb('Propose root transaction failed.'); }
+              else { cb(null, h); }
+            })
+          }
+        })
       })
-    })
-
-    */
+    }
   })
 
 
@@ -89,13 +104,9 @@ exports.checkSig = function(h, sig, bridge, client, cb) {
   })
 }
 
-//checkSignatures(bytes32,address,uint256,uint256,bytes)
+// Determine if the signatures map to at least `threshold` stakers. If they don't,
+// a proposal with this signature data will fail.
 function _checkSigsContract(hRoot, chain, start, end, sigData, bridge, client, cb) {
-  console.log('\nhroot', hRoot)
-  console.log('chain', chain)
-  console.log('start', start)
-  console.log('end', end)
-  console.log('sigData', sigData)
   let call = client.eth.abi.encodeFunctionCall({
     name: 'checkSignatures',
     type: 'function',
@@ -108,8 +119,25 @@ function _checkSigsContract(hRoot, chain, start, end, sigData, bridge, client, c
     ]},
     [ hRoot, chain, start, end, sigData ]
   )
-  client.eth.call({ to: bridge, data: call }, (err, success) => {
-    console.log('err', err, 'success', success)
+  client.eth.call({ to: bridge, data: call }, (err, nSigs) => {
+    console.log('nSigs', nSigs)
+    if (err) { cb(err); }
+    else {
+      getThreshold(bridge, client, (err, thresh) => {
+        if (err) { cb(err); }
+        else if (parseInt(nSigs) >= parseInt(thresh)) { cb(null, true); }
+        else { cb(`Not enough staker signatures. Got ${parseInt(nSigs)}. Needed ${parseInt(thres)}.}`); }
+      })
+    }
+  })
+}
+
+// Check if a receipt has at least a desired number of logs
+function _checkReceiptLogs(desired, hash, client, cb) {
+  client.eth.getTransactionReceipt(hash, (err, receipt) => {
+    if (err) { cb(err); }
+    else if (receipt.logs.length < desired) { cb(null, false); }
+    else { cb(null, true); }
   })
 }
 

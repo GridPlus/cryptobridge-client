@@ -160,13 +160,10 @@ class Bridge {
               };
             });
             if (checkedSigs.length >= thresh) {
-              //sigs, bridge, mappedChain, wallet, client, cb, gasPrice=1000000000)
               bridges.propose(checkedSigs, bridge, mappedChain, this.wallet, this.clients[i],
-                (err, res) => {
-                  if (err) { console.log(`Error sending proposal: ${err}`); }
-                  else {
-
-                  }
+                (err, txHash) => {
+                  if (err) { logger.log('error', `Error sending proposal: ${err}`); }
+                  else { logger.log('info', `Successfully proposed root: ${txHash}`)}
               }, this.gasPrice);
             }
           })

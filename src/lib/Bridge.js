@@ -147,6 +147,7 @@ class Bridge {
   // Check the signature counts for each saved chain. Propose a root if a
   // threshold is met. If the proposal goes through, wipe all sigs from memory.
   tryPropose() {
+    console.log('proposing')
     this.addrs.forEach((bridge, i) => {
       bridges.getThreshold(bridge, this.clients[i], (err, thresh) => {
         if (this.sigs[bridge] != undefined) {
@@ -185,14 +186,16 @@ class Bridge {
         const currentBlock = parseInt(this.cache[j][this.cache[j].length - 1][0]);
         const start = lastBlock + 1;
         const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
-        if (end - start > this.proposeThreshold) {
+        console.log('start', start, 'end', end, 'current', currentBlock, 'last', lastBlock)
+        if (end - start >= this.proposeThreshold) {
           this.getProposalRoot(chain, start, end, (err, hRoot) => {
             if (err) { logger.log('warn', `Error getting proposal root: ${err}`); }
             else {
               const msg = {
                 type: 'SIGREQ',
                 from: `${this.externalHost}:${this.port}`,
-                data: { chain, start, end, root: hRoot }
+                data: { chain, start, end, root: hRoot },
+                peers: Object.keys(this.peers)
               };
               this.broadcastMsg(msg)
             }
@@ -209,6 +212,7 @@ class Bridge {
       if (n < endBlock) { cb('Not synced to that block. Try again later.'); }
       else {
         const headerRoot = merkle.getMerkleRoot(headers);
+        console.log('headerRoot', headerRoot)
         cb(null, headerRoot);
       }
     })
@@ -224,7 +228,7 @@ class Bridge {
           else {
             if (!this.peers[msg.from] || this.peers[msg.from].state == 'closed') { this.addPeer(msg.from); }
             msg.data.sig = sig;
-            this.broadcastMsg({ type: 'SIGPASS', data: msg.data });
+            this.broadcastMsg({ type: 'SIGPASS', data: msg.data, peers: Object.keys(this.peers) }, msg.peers);
           }
         });
         break;
@@ -292,20 +296,35 @@ class Bridge {
     this.peers[host] = peer;
     logger.info(`Added peer connection. ${Object.keys(this.peers).length} open connections.`)
     // Save the peer
-    config.addPeers([peer], this.datadir, this.index, (err, newSaves) => {
-      if (err) { logger.warning(err); }
-      else if (newSaves > 0){ logger.info(`Saved ${newSaves} new peers.`); }
-    })
+    config.addPeers([peer], this.datadir, this.index, this.handleAddPeer);
   }
 
   // Broadcast a message to all peers
-  broadcastMsg(_msg) {
-    const msg = JSON.stringify(_msg);
+  broadcastMsg(_msg, contacted=[]) {
+    let toContact = [];
+    let toAdd = [];
+    // Don't send to disconnected peers or to peers already contacted
     Object.keys(this.peers).forEach((p) => {
-      if (this.peers[p].state == 'connected') {
-        this.peers[p].send('msg', msg);
+      if (this.peers[p].state == 'connected' && contacted.indexOf(p) == -1) {
+        toContact.push(p);
+        contacted.push(p); // Also add them to the contacted list for future broadcasts
       }
     })
+    _msg.peers = contacted;
+    const msg = JSON.stringify(_msg);
+    // Send messages to uncontacted peers
+    toContact.forEach((host) => {
+      this.peers[host].send('msg', msg);
+    })
+    // Grab some peers
+    contacted.forEach((p) => {
+      if (Object.keys(this.peers).indexOf(p) == -1) {
+        const params = p.split(':')
+        const peer = new Peer(params[0], params[1]);
+        toAdd.push(peer);
+      }
+    })
+    config.addPeers(toAdd, this.datadir, this.index, this.handleAddPeer);
   }
 
   // Ping peers
@@ -315,6 +334,11 @@ class Bridge {
     Object.keys(this.peers).forEach((p) => {
       this.peers[p].send('msg', ping);
     })
+  }
+
+  handleAddPeer(err, newSaves) {
+    if (err) { logger.warning(err); }
+    else if (newSaves > 0){ logger.info(`Saved ${newSaves} new peers.`); }
   }
 
 }

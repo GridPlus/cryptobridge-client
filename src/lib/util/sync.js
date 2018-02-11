@@ -78,6 +78,9 @@ exports.loadHeaders = function(startN, endN, fPath, cb) {
           reader.close();
         }
       }
+    } else if (line[0] === 'undefined') {
+      // Need to chase down this bug. For now, resyncing seems to work
+      _flushFile(fPath); reader.close();
     } else {
       reader.close()
     }
@@ -113,4 +116,8 @@ function _zipLineToCache(line) {
 function _hashHeader(n, prevHeader, timestamp, transactionsRoot, receiptsRoot) {
   const str = `0x${prevHeader.slice(2)}${timestamp}${leftPad(n, 64, '0')}${transactionsRoot.slice(2)}${receiptsRoot.slice(2)}`
   return sha3(str);
+}
+
+function _flushFile(fPath) {
+  fs.unlinkSync(fPath);
 }

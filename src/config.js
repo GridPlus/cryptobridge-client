@@ -156,9 +156,8 @@ function _loadPeers(hosts, cb, peers={}) {
     const host = hosts.pop();
     const params = host.split(':');
     const peer = new Peer(params[0], params[1]);
-    let connected = false;
     peer.on('error', () => {})
-    peer.on('connect', () => { console.log('connected'); connected = true; })
+    peer.on('connect', () => { })
     peer.connect();
     peers[host] = peer;
     _loadPeers(hosts, cb, peers);

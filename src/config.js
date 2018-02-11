@@ -46,7 +46,6 @@ exports.addGroup = function(group, dir, cb) {
     addrB = group[1];
   }
   _ifExists(fPath, (err, data, exists) => {
-    console.log('data', data)
     if (err) { cb(err); }
     else {
       const i = `${addrA}_${addrB}`;
@@ -86,7 +85,11 @@ exports.addPeers = function(peers, dir, index, cb) {
       else if (!data[index].peers) { data[index].peers = [] }
       // Add the peers in a list
       peers.forEach((peer) => {
-        data[index].peers.push(`${peer.host.host}:${peer.host.port}`);
+        const p = `${peer.host.host}:${peer.host.port}`;
+        // Don't add peers already in the list
+        if (data[index].peers.indexOf(p) == -1) {
+          data[index].peers.push(p);
+        }
       })
       jsonfile.writeFile(fPath, data, { spaces: 2}, (err, success) => {
         if (err) { cb(err); }

@@ -59,6 +59,9 @@ class Bridge {
       logger.log('info', `Listening on port ${this.port}`)
     })
 
+    // Ping all peers so they will connect to you
+    setTimeout(() => { this.pingPeers() }, 1000);
+
     // Sync headers from the two networks
     for (let i = 0; i < NCHAINS; i++) {
       sync.checkHeaders(`${this.datadir}/${this.addrs[i]}/headers`, (err, cache) => {
@@ -79,25 +82,29 @@ class Bridge {
                 if (err) { logger.log('warn', `ERROR: ${err}`); }
               });
             }
-            // Continue syncing periodically
             setInterval(() => {
+              // Clean up peer connections
+              this.cleanPeers()
+              // Sync
               this.sync(this.addrs[i], this.cache[i], this.clients[i], (err, newCache) => {
                 if (err) { logger.log('warn', `ERROR: ${err}`); }
                 this.cache[i] = newCache;
-              })
-            }, opts.queryDelay || 1000);
-            // Do stuff if you're the proposer
-            setInterval(() => {
+              });
+              // Try to propose if applicable
               const bdata = this.bridgeData[this.addrs[i]];
               if (bdata.proposer == this.wallet.getAddress()) {
                 console.log('im the proposer')
                 this.getRootsAndBroadcast(i);
               }
             }, opts.queryDelay || 1000);
-          })
-        }
-      })
-    }
+          });
+        };
+      });
+    };
+
+    // Ping peers periodically
+    setInterval(() => { this.pingPeers() }, 300000)
+
   }
 
 
@@ -250,6 +257,8 @@ class Bridge {
       case 'PEERSREQ':
         console.log('someone asking for peers list', msg);
         break;
+      case 'PING':
+        this.addPeer(msg.from);
       default:
         logger.log('info', `Got msg with no type: ${msg}`)
         break;
@@ -273,6 +282,12 @@ class Bridge {
     }
   }
 
+  cleanPeers() {
+    Object.keys(this.peers).forEach((i) => {
+      if (this.peers[i].state == 'closed') { delete this.peers[i]; }
+    })
+  }
+
   addPeer(host) {
     const params = host.split(':');
     const peer = new Peer(params[0], params[1]);
@@ -291,6 +306,16 @@ class Bridge {
       }
     })
   }
+
+  // Ping peers
+  pingPeers() {
+    const host = `${this.externalHost}:${this.port}`;
+    const ping = JSON.stringify({ type: 'PING', from: host });
+    Object.keys(this.peers).forEach((p) => {
+      this.peers[p].send('msg', ping);
+    })
+  }
+
 }
 
 module.exports = Bridge;

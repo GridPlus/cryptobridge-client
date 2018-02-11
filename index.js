@@ -47,6 +47,7 @@ if (!fs.existsSync(DIR)) { fs.mkdirSync(DIR); }
 
 // Setup the logger
 Log.setLogger(DIR);
+const logger = Log.getLogger();
 
 // Numerical parameters/config
 let THRESH = 4;
@@ -55,7 +56,7 @@ if (argv['proposal-threshold']) { THRESH = util.lastPowTwo(argv['proposal-thresh
 
 if(argv.network) {
   // Specify two networks being bridged
-  if (argv.network.length != 2) { console.log('ERROR: Please supply two networks, e.g. `--network 0x...a --network 0x...b`'); }
+  if (argv.network.length != 2) { logger.error('Please supply two networks, e.g. `--network 0x...a --network 0x...b`'); }
   INDEX = config.getNetIndex(argv.network);
 } else if (!argv.add) {
   try {
@@ -72,8 +73,8 @@ if (argv.add) {
   const group = argv.add.split(',');
   if (group.length != 4) { console.log('ERROR: To add a bridge group, please pass arguments separated by commas: "network_a_host,network_a_address,network_b_host,network_b_address"')}
   config.addGroup(group, DIR, (err) => {
-    if (err) { console.log(`ERROR: ${err}`) }
-    else { console.log('Successfully added bridge group.')}
+    if (err) { logger.error(err) }
+    else { logger.info('Successfully added bridge group.')}
   })
 }
 
@@ -84,12 +85,12 @@ if (argv.bootstrap) {
   Peers.connectToPeers(_peers, (conns) => {
     if (conns.length > 0) {
       config.addPeers(conns, DIR, INDEX, (err) => {
-        if (err) { console.log(`ERROR: ${err}`); }
-        else { console.log(`Successfully bootstrapped ${conns.length} peers on bridge ${INDEX}`)}
+        if (err) { logger.error(err); }
+        else { logger.info(`Successfully bootstrapped ${conns.length} peers on bridge ${INDEX}`)}
         conns.forEach((conn) => { conn.disconnect(); })
       })
     } else {
-      console.log('ERROR: Could not add any bootstrapped peers.')
+      logger.error('Could not add any bootstrapped peers.')
     }
   })
 }
@@ -99,14 +100,14 @@ if (argv['create-wallet']) {
   let pw;
   let done = false;
   _createWallet((w) => {
-    console.log(`Created wallet with address ${w.getAddress()}`);
+    logger.info(`Created wallet with address ${w.getAddress()}`);
   });
 }
 
 // Get wallet list
 if (argv['list-wallets']) {
   if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
-    console.log('No wallets saved. You can create one with --create-wallet');
+    logger.error('No wallets saved. You can create one with --create-wallet');
   } else {
     _getAddresses(fs.readdirSync(`${DIR}/wallets`), (addrs) => {
       console.log('Saved wallets:')
@@ -124,14 +125,14 @@ if (argv['list-wallets']) {
 if (argv.start) {
   if (!fs.existsSync(`${DIR}/wallets`) || fs.readdirSync(`${DIR}/wallets`) == 0) {
     // If there are no saved wallets, create a new wallet
-    console.log("No wallet detected. Let's create one.")
+    logger.warning("No wallet detected. Let's create one.")
     _createWallet((_wallet) => {
       WALLET = _wallet;
     });
   } else if (argv.wallet) {
     // If an index was passed, rehydrate the wallet with that file's data
     if (isNaN(parseInt(argv.wallet))) {
-      console.log('Error parsing wallet input. Please provide an index for which wallet to use. To see saved wallets, select --list-wallets');
+      logger.error('Error parsing wallet input. Please provide an index for which wallet to use. To see saved wallets, select --list-wallets');
     }
     const path = `${DIR}/wallets/${fs.readdirSync(`${DIR}/wallets`)[parseInt(argv.wallet)]}`;
     _unlockWallet(path, (_wallet) => {
@@ -170,8 +171,7 @@ function start() {
           proposeThreshold: THRESH,
           wallet: WALLET,
         });
-        console.log(`Wallet address: ${WALLET.getAddress()}`)
-        console.log('Bridge client started')
+        logger.info('Bridge client started')
       })
     })
   })

@@ -20,7 +20,6 @@ class Bridge {
   constructor(opts) {
     logger = Log.getLogger();
     if (!opts) { opts = {}; }
-
     this.wallet = opts.wallet || new Wallet();
     logger.log('info', `Wallet setup: ${this.wallet.getAddress()}`)
     this.port = opts.port || 8000;
@@ -65,7 +64,7 @@ class Bridge {
     // Sync headers from the two networks
     for (let i = 0; i < NCHAINS; i++) {
       sync.checkHeaders(`${this.datadir}/${this.addrs[i]}/headers`, (err, cache) => {
-        if (err) { logger.error('Error getting headers', err, i); }
+        if (err) { }//logger.error('Error getting headers', err, i); }
         else {
           this.cache[i] = cache;
           this.sync(this.addrs[i], cache, this.clients[i], (err, newCache) => {
@@ -93,7 +92,6 @@ class Bridge {
               // Try to propose if applicable
               const bdata = this.bridgeData[this.addrs[i]];
               if (bdata.proposer == this.wallet.getAddress()) {
-                console.log('im the proposer')
                 this.getRootsAndBroadcast(i);
               }
             }, opts.queryDelay || 1000);
@@ -104,7 +102,6 @@ class Bridge {
 
     // Ping peers periodically
     setInterval(() => { this.pingPeers() }, 300000)
-
   }
 
 
@@ -293,8 +290,12 @@ class Bridge {
     const peer = new Peer(params[0], params[1]);
     peer.connect();
     this.peers[host] = peer;
+    logger.info(`Added peer connection. ${Object.keys(this.peers).length} open connections.`)
     // Save the peer
-    config.addPeers([peer], this.datadir, this.index, () => {})
+    config.addPeers([peer], this.datadir, this.index, (err, newSaves) => {
+      if (err) { logger.warning(err); }
+      else if (newSaves > 0){ logger.info(`Saved ${newSaves} new peers.`); }
+    })
   }
 
   // Broadcast a message to all peers

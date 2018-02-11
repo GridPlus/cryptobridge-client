@@ -81,19 +81,21 @@ exports.addPeers = function(peers, dir, index, cb) {
   _ifExists(fPath, (err, data, exists) => {
     if (err) { cb(err); }
     else {
-      if (!exists) { cb('ERROR: Config file does not exist. Start by adding a bridge with --add') }
+      if (!exists) { cb('Config file does not exist. Start by adding a bridge with --add') }
       else if (!data[index].peers) { data[index].peers = [] }
       // Add the peers in a list
+      let count = 0;
       peers.forEach((peer) => {
         const p = `${peer.host.host}:${peer.host.port}`;
         // Don't add peers already in the list
         if (data[index].peers.indexOf(p) == -1) {
           data[index].peers.push(p);
+          count ++;
         }
       })
       jsonfile.writeFile(fPath, data, { spaces: 2}, (err, success) => {
         if (err) { cb(err); }
-        else { cb(null); }
+        else { cb(null, count); }
       })
     }
   })

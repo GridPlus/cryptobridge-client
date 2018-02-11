@@ -5,13 +5,17 @@ const winston = require('winston');
 let logger = null;
 exports.logger = logger;
 
+
 // Setup the winston logger
 exports.setLogger = function(fPath) {
   logger = new (winston.Logger)({
     transports: [
-      new (winston.transports.File)({ filename: `${fPath}/log`, json: false, timestamp: true })
-    ]
+      new (winston.transports.File)({ filename: `${fPath}/log`, json: false, timestamp: true }),
+      new winston.transports.Console({ colorize: true, timestamp: true })
+    ],
+    // levels: customLevels.levels,
   })
+  // winston.addColors(customLevels)
 }
 
 exports.getLogger = function() {

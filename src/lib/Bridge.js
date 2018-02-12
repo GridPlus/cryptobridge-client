@@ -63,12 +63,15 @@ class Bridge {
     setTimeout(() => { this.pingPeers() }, 1000);
 
     // Sync headers from the two networks
-    for (let i = 0; i < NCHAINS; i++) {
+    // NOTE: This should start at 0. 1 is for debugging
+    for (let i = 1; i < NCHAINS; i++) {
       sync.checkHeaders(`${this.datadir}/${this.addrs[i]}/headers`, (err, cache) => {
-        if (err) { }//logger.error('Error getting headers', err, i); }
+        if (err) { logger.error('Error getting headers', err, i); }
         else {
-          this.cache[i] = cache;
-          this.sync(this.addrs[i], cache, this.clients[i], (err, newCache) => {
+          if (cache.length < 100) { this.cache[i] = cache; }
+          else { this.cache[i] = []; }
+          const cacheBlock = util.getCacheBlock(cache);
+          this.sync(this.addrs[i], this.clients[i], this.cache[i], cacheBlock, (err, newCache) => {
             if (err) { logger.log('warn', `ERROR: ${err}`); }
             else { this.cache[i] = newCache; }
             // Get the bridge data. This will be updated periodically (when we get new
@@ -86,7 +89,8 @@ class Bridge {
               // Clean up peer connections
               this.cleanPeers()
               // Sync
-              this.sync(this.addrs[i], this.cache[i], this.clients[i], (err, newCache) => {
+              const cacheBlock = util.getCacheBlock(this.cache[i]);
+              this.sync(this.addrs[i], this.clients[i], this.cache[i], cacheBlock, (err, newCache) => {
                 if (err) { logger.log('warn', `ERROR: ${err}`); }
                 this.cache[i] = newCache;
               });
@@ -95,7 +99,7 @@ class Bridge {
               if (bdata.proposer == this.wallet.getAddress()) {
                 this.getRootsAndBroadcast(i);
               }
-            }, opts.queryDelay || 1000);
+            }, opts.queryDelay || 2000);
           });
         };
       });
@@ -108,14 +112,14 @@ class Bridge {
 
   // Sync a given client. Headers are persisted in sets of 100 along with their
   // corresponding block numbers
-  sync(chain, cache, client, cb) {
+  // NOTE: cacheblock is passed in the event of an empty cache to make sure
+  // we don't write any new lines
+  sync(chain, client, cache, cacheBlock, cb) {
     const fPath = `${this.datadir}/${chain}/headers`;
-    // Make sure we don't write the last line twice. The purpose of saving the
-    // cache is so we can keep writing to unfinished lines
-    if (cache.length > 99) { cache = []; }
     client.eth.getBlockNumber((err, currentBlock) => {
-      let cacheBlock = 0;
-      if (cache[cache.length - 1] != undefined) { cacheBlock = parseInt(cache[cache.length - 1][0]); }
+      if (!cacheBlock && cache[cache.length - 1] != undefined) {
+        cacheBlock = parseInt(cache[cache.length - 1][0]);
+      }
 
       if (err) { cb(err); }
       else if (currentBlock > cacheBlock) {
@@ -126,7 +130,7 @@ class Bridge {
           else { cb(null, newCache); }
         });
       } else { cb(null, cache); }
-    })
+    });
   }
 
   // Get current data on the bridges
@@ -198,12 +202,12 @@ class Bridge {
         const currentBlock = parseInt(this.cache[j][this.cache[j].length - 1][0]);
         const start = lastBlock + 1;
         const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
-        console.log('start', start, 'end', end, 'currentBlock', currentBlock, 'lastBlock', lastBlock)
         if (end - start >= this.proposeThreshold) {
           this.getProposalRoot(chain, start, end, (err, hRoot) => {
             if (err) { logger.log('warn', `Error getting proposal root: ${err}`); }
             else if (!hRoot) {
-              this.sync(chain, this.cache[j], this.clients[j], (err, newCache) => {
+              const cacheBlock = util.getCacheBlock(this.cache[j]);
+              this.sync(chain, this.clients[j], this.cache[j], cacheBlock, (err, newCache) => {
                 if (err) { logger.warn(`Error syncing: ${err}`); }
                 else { this.cache[j] = newCache; }
               })

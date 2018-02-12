@@ -12,14 +12,21 @@ exports.checkHeaders = function(fPath, cb) {
   if (!fs.existsSync(fPath)) { cb(null, []); }
   else {
     let line;
+    let exit = false;
     const reader = readline.createInterface({ input: fs.createReadStream(fPath) })
     reader.on('error', (err) => { cb(err); reader.close(); })
     reader.on('line', (_line) => {
-      line = _line.split(',').splice(1); // Every line has a leading comma
-      for (let i = 0; i < line.length; i += 5) {
-        if (parseInt(line[i]) != lastNumber + 1) { cb('Problem syncing block headers.'); break; }
-        lastHeader = line[i+4];
-        lastNumber = parseInt(line[i]);
+      if (!exit) {
+        line = _line.split(',').splice(1); // Every line has a leading comma
+        for (let i = 0; i < line.length; i += 5) {
+          if (parseInt(line[i]) != lastNumber + 1) {
+            cb(`Problem syncing block headers. Synced to ${lastNumber} but got ${line[i]} after`);
+            reader.close();
+            exit = true;
+          }
+          lastHeader = line[i+4];
+          lastNumber = parseInt(line[i]);
+        }
       }
     })
     reader.on('close', () => {
@@ -29,19 +36,24 @@ exports.checkHeaders = function(fPath, cb) {
 }
 
 // Sync up to the current block and save to a file. Only header data is stored.
+// BUG: This is generating duplicate header data lines...
+// BUG: Specific condition: only occurs upon reboot
 function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb,
 lastHeader=`0x${leftPad(0, 64, '0')}`) {
-  if (currentBlockN == lastBlockN) {
-    fStream.end(_stringify(cache));
+  if (currentBlockN <= lastBlockN) {
+    //fStream.end(_stringify(cache));
+    fStream.close();
     cb(null, cache);
   } else {
     client.eth.getBlock(lastBlockN + 1, (err, block) => {
       if (err) { cb(err); }
+      else if (!block) { cb(null, cache); }
       else {
         let item = [ lastBlockN + 1, block.timestamp, block.transactionsRoot,
           block.receiptsRoot ];
-        item.push(_hashHeader(lastBlockN + 1, lastHeader, block.timestamp,
-          block.transactionsRoot, block.receiptsRoot));
+        lastHeader = _hashHeader(lastBlockN + 1, lastHeader, block.timestamp,
+          block.transactionsRoot, block.receiptsRoot);
+        item.push(lastHeader);
         cache.push(item);
         if (cache.length > 100) {
           // Write chunks of 100, but make sure the cache has at least one value

@@ -10,3 +10,13 @@ exports.getCacheBlock = function(cache) {
   }
   return cacheBlock;
 }
+
+exports.concatHeadersCache = function(headers, cache, endBlock) {
+  let flatCache = [];
+  cache.forEach((c) => {
+    if (c && c.length > 0 && c[0] <= endBlock) {
+      flatCache.push(c[4]);
+    }
+  })
+  return headers.concat(flatCache);
+}

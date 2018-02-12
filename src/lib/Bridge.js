@@ -64,7 +64,7 @@ class Bridge {
 
     // Sync headers from the two networks
     // NOTE: This should start at 0. 1 is for debugging
-    for (let i = 1; i < NCHAINS; i++) {
+    for (let i = 0; i < NCHAINS; i++) {
       sync.checkHeaders(`${this.datadir}/${this.addrs[i]}/headers`, (err, cache) => {
         if (err) { logger.error('Error getting headers', err, i); }
         else {
@@ -120,7 +120,6 @@ class Bridge {
       if (!cacheBlock && cache[cache.length - 1] != undefined) {
         cacheBlock = parseInt(cache[cache.length - 1][0]);
       }
-
       if (err) { cb(err); }
       else if (currentBlock > cacheBlock) {
         // Create a write stream so we can write to the header file
@@ -152,7 +151,6 @@ class Bridge {
   // Check the signature counts for each saved chain. Propose a root if a
   // threshold is met. If the proposal goes through, wipe all sigs from memory.
   tryPropose() {
-    console.log('proposing')
     this.addrs.forEach((bridge, i) => {
       bridges.getThreshold(bridge, this.clients[i], (err, thresh) => {
         if (this.sigs[bridge] != undefined) {
@@ -173,15 +171,19 @@ class Bridge {
                 else if (success) {
                   logger.info(`Successfully proposed root: ${this.proposal}`)
                   this.proposal = null;
+                  this.sigs[bridge][mappedChain] = [];
+                  this.getBridgeData(bridge, mappedChain, this.clients[i], (err) => {
+                    if (err) { logger.warn(`Error getting new bridge data: ${err}`); }
+                  })
                 }
               })
             } else if (checkedSigs.length >= thresh) {
               bridges.propose(checkedSigs, bridge, mappedChain, this.wallet, this.clients[i],
                 (err, txHash) => {
-                  if (err) { logger.log('error', `Error sending proposal: ${err}`); }
+                  if (err) { logger.error(`Error sending proposal: ${err}`); }
                   else {
                     this.proposal = txHash;
-                    logger.log('info', `Submitted proposal root: ${txHash}`);
+                    logger.info(`Submitted proposal root: ${txHash}`);
                   }
               }, this.gasPrice);
             }
@@ -203,8 +205,8 @@ class Bridge {
         const start = lastBlock + 1;
         const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
         if (end - start >= this.proposeThreshold) {
-          this.getProposalRoot(chain, start, end, (err, hRoot) => {
-            if (err) { logger.log('warn', `Error getting proposal root: ${err}`); }
+          this.getProposalRoot(chain, start, end, this.cache[j], (err, hRoot) => {
+            if (err) { logger.warn(`Error getting proposal root: ${err}`); }
             else if (!hRoot) {
               const cacheBlock = util.getCacheBlock(this.cache[j]);
               this.sync(chain, this.clients[j], this.cache[j], cacheBlock, (err, newCache) => {
@@ -220,7 +222,7 @@ class Bridge {
               };
               this.broadcastMsg(msg);
             }
-          })
+          });
         }
       }
     }
@@ -228,10 +230,12 @@ class Bridge {
 
   // If this client is elected as the proposer, get the relevant data and form
   // the block header Merkle root.
-  getProposalRoot(chain, startBlock, endBlock, cb) {
+  getProposalRoot(chain, startBlock, endBlock, cache=[], cb) {
     sync.loadHeaders(startBlock, endBlock, `${this.datadir}/${chain}/headers`, (err, headers, n) => {
+      headers = util.concatHeadersCache(headers, cache, endBlock);
+      const cacheBlock = util.getCacheBlock(cache);
       if (err) { cb(err); }
-      else if (n < endBlock) {
+      else if (n < endBlock && cacheBlock < endBlock) {
         cb(null, null);
       } else {
         const headerRoot = merkle.getMerkleRoot(headers);
@@ -291,10 +295,13 @@ class Bridge {
   // With a SIGREQ, verify a proposed header root and return a signature
   // if it metches your history
   verifyProposedRoot(data, cb) {
+    const i = this.addrs.indexOf(data.chain);
     if (util.lastPowTwo(data.end - data.start) != data.end - data.start) {
       cb('Range not a power of two');
+    } else if (i < 0) {
+      cb ('Not watching that chain');
     } else {
-      this.getProposalRoot(data.chain, data.start, data.end, (err, hRoot) => {
+      this.getProposalRoot(data.chain, data.start, data.end, this.cache[i], (err, hRoot) => {
         if (err) { cb(err); }
         else if (hRoot != data.root) { cb('Roots do not match'); }
         else if (hRoot) {

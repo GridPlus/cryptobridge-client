@@ -36,12 +36,9 @@ exports.checkHeaders = function(fPath, cb) {
 }
 
 // Sync up to the current block and save to a file. Only header data is stored.
-// BUG: This is generating duplicate header data lines...
-// BUG: Specific condition: only occurs upon reboot
 function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb,
 lastHeader=`0x${leftPad(0, 64, '0')}`) {
   if (currentBlockN <= lastBlockN) {
-    //fStream.end(_stringify(cache));
     fStream.close();
     cb(null, cache);
   } else {

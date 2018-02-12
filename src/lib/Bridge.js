@@ -42,7 +42,8 @@ class Bridge {
     this.bridgeData = {};
     this.bridgeData[this.addrs[0]] = { lastBlocks: {}, proposer: null };
     this.bridgeData[this.addrs[1]] = { lastBlocks: {}, proposer: null };
-
+    // Propsal roots will be cached here
+    this.proposal = null;
     // Create a server and listen to peer messages
     this.server = net.createServer((socket) => {
       socket.on('end', () => {
@@ -115,6 +116,7 @@ class Bridge {
     client.eth.getBlockNumber((err, currentBlock) => {
       let cacheBlock = 0;
       if (cache[cache.length - 1] != undefined) { cacheBlock = parseInt(cache[cache.length - 1][0]); }
+
       if (err) { cb(err); }
       else if (currentBlock > cacheBlock) {
         // Create a write stream so we can write to the header file
@@ -123,8 +125,7 @@ class Bridge {
           if (err) { cb(err); }
           else { cb(null, newCache); }
         });
-      }
-      else { cb(null, cache); }
+      } else { cb(null, cache); }
     })
   }
 
@@ -162,17 +163,28 @@ class Bridge {
                 checkedSigs.push(sigs[i]);
               };
             });
-            if (checkedSigs.length >= thresh) {
+            if (this.proposal != null) {
+              bridges.checkReceiptLogs(1, this.proposal, this.clients[i], (err, success) => {
+                if (err) { logger.warning(`Problem getting receipt: ${err}`); }
+                else if (success) {
+                  logger.info(`Successfully proposed root: ${this.proposal}`)
+                  this.proposal = null;
+                }
+              })
+            } else if (checkedSigs.length >= thresh) {
               bridges.propose(checkedSigs, bridge, mappedChain, this.wallet, this.clients[i],
                 (err, txHash) => {
                   if (err) { logger.log('error', `Error sending proposal: ${err}`); }
-                  else { logger.log('info', `Successfully proposed root: ${txHash}`)}
+                  else {
+                    this.proposal = txHash;
+                    logger.log('info', `Submitted proposal root: ${txHash}`);
+                  }
               }, this.gasPrice);
             }
-          })
+          });
         }
-      })
-    })
+      });
+    });
   }
 
   // Get roots for all saved, bridged chains that are not this one. Broadcast
@@ -186,18 +198,23 @@ class Bridge {
         const currentBlock = parseInt(this.cache[j][this.cache[j].length - 1][0]);
         const start = lastBlock + 1;
         const end = lastBlock + 1 + util.lastPowTwo(currentBlock - lastBlock - 1);
-        console.log('start', start, 'end', end, 'current', currentBlock, 'last', lastBlock)
+        console.log('start', start, 'end', end, 'currentBlock', currentBlock, 'lastBlock', lastBlock)
         if (end - start >= this.proposeThreshold) {
           this.getProposalRoot(chain, start, end, (err, hRoot) => {
             if (err) { logger.log('warn', `Error getting proposal root: ${err}`); }
-            else {
+            else if (!hRoot) {
+              this.sync(chain, this.cache[j], this.clients[j], (err, newCache) => {
+                if (err) { logger.warn(`Error syncing: ${err}`); }
+                else { this.cache[j] = newCache; }
+              })
+            } else {
               const msg = {
                 type: 'SIGREQ',
                 from: `${this.externalHost}:${this.port}`,
                 data: { chain, start, end, root: hRoot },
                 peers: Object.keys(this.peers)
               };
-              this.broadcastMsg(msg)
+              this.broadcastMsg(msg);
             }
           })
         }
@@ -209,10 +226,11 @@ class Bridge {
   // the block header Merkle root.
   getProposalRoot(chain, startBlock, endBlock, cb) {
     sync.loadHeaders(startBlock, endBlock, `${this.datadir}/${chain}/headers`, (err, headers, n) => {
-      if (n < endBlock) { cb('Not synced to that block. Try again later.'); }
-      else {
+      if (err) { cb(err); }
+      else if (n < endBlock) {
+        cb(null, null);
+      } else {
         const headerRoot = merkle.getMerkleRoot(headers);
-        console.log('headerRoot', headerRoot)
         cb(null, headerRoot);
       }
     })
@@ -275,7 +293,7 @@ class Bridge {
       this.getProposalRoot(data.chain, data.start, data.end, (err, hRoot) => {
         if (err) { cb(err); }
         else if (hRoot != data.root) { cb('Roots do not match'); }
-        else {
+        else if (hRoot) {
           const sig = this.wallet.sign(hRoot);
           cb(null, sig);
         }
@@ -291,12 +309,14 @@ class Bridge {
 
   addPeer(host) {
     const params = host.split(':');
-    const peer = new Peer(params[0], params[1]);
-    peer.connect();
-    this.peers[host] = peer;
-    logger.info(`Added peer connection. ${Object.keys(this.peers).length} open connections.`)
-    // Save the peer
-    config.addPeers([peer], this.datadir, this.index, this.handleAddPeer);
+    if (params[0] != this.externalHost || parseInt(params[1]) != parseInt(this.port)) {
+      const peer = new Peer(params[0], params[1]);
+      peer.connect();
+      this.peers[host] = peer;
+      logger.info(`Added peer connection. ${Object.keys(this.peers).length} open connections.`)
+      // Save the peer
+      config.addPeers([peer], this.datadir, this.index, this.handleAddPeer);
+    }
   }
 
   // Broadcast a message to all peers
@@ -317,14 +337,16 @@ class Bridge {
       this.peers[host].send('msg', msg);
     })
     // Grab some peers
-    contacted.forEach((p) => {
+    /*contacted.forEach((p) => {
       if (Object.keys(this.peers).indexOf(p) == -1) {
         const params = p.split(':')
-        const peer = new Peer(params[0], params[1]);
-        toAdd.push(peer);
+        if (params[0] != this.externalHost && parseInt(params[1]) != parseInt(this.port)) {
+          const peer = new Peer(params[0], params[1]);
+          toAdd.push(peer);
+        }
       }
     })
-    config.addPeers(toAdd, this.datadir, this.index, this.handleAddPeer);
+    config.addPeers(toAdd, this.datadir, this.index, this.handleAddPeer);*/
   }
 
   // Ping peers
@@ -337,7 +359,7 @@ class Bridge {
   }
 
   handleAddPeer(err, newSaves) {
-    if (err) { logger.warning(err); }
+    if (err) { logger.warn(err); }
     else if (newSaves > 0){ logger.info(`Saved ${newSaves} new peers.`); }
   }
 

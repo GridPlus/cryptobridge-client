@@ -52,7 +52,6 @@ class Wallet {
       s: _sig.s.toString('hex'),
       v: _sig.v
     };
-    console.log('\n------------------\nsigned from', this.getAddress(), '\n--------------------------\n')
     return sig;
   }
 

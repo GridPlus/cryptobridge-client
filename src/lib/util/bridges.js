@@ -68,20 +68,11 @@ exports.propose = function(sigs, bridge, mappedChain, wallet, client, cb, gasPri
         // Send the proposal tx!
         client.eth.sendSignedTransaction(signedTx, (err, h) => {
           if (err) { cb(err); }
-          else {
-            // Make sure it went through (it will emit a log)
-            _checkReceiptLogs(1, h, client, (err, success) => {
-              if (err) { cb(err); }
-              else if (!success) { cb('Propose root transaction failed.'); }
-              else { cb(null, h); }
-            })
-          }
+          else { cb(null, h) };
         })
       })
     }
   })
-
-
 }
 
 
@@ -130,13 +121,14 @@ function _checkSigsContract(hRoot, chain, start, end, sigData, bridge, client, c
 }
 
 // Check if a receipt has at least a desired number of logs
-function _checkReceiptLogs(desired, hash, client, cb) {
+function checkReceiptLogs(desired, hash, client, cb) {
   client.eth.getTransactionReceipt(hash, (err, receipt) => {
     if (err) { cb(err); }
     else if (receipt.logs.length < desired) { cb(null, false); }
     else { cb(null, true); }
   })
 }
+exports.checkReceiptLogs = checkReceiptLogs;
 
 
 // getLastBlock(address)

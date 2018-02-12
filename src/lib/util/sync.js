@@ -33,19 +33,15 @@ function syncData(currentBlockN, lastBlockN, client, fStream, cache=[], cb,
 lastHeader=`0x${leftPad(0, 64, '0')}`) {
   if (currentBlockN == lastBlockN) {
     fStream.end(_stringify(cache));
-    cb(null, _zipCache(cache));
+    cb(null, cache);
   } else {
     client.eth.getBlock(lastBlockN + 1, (err, block) => {
       if (err) { cb(err); }
       else {
-        const item = {
-          n: lastBlockN + 1,
-          timestamp: block.timestamp,
-          transactionsRoot: block.transactionsRoot,
-          receiptsRoot: block.receiptsRoot,
-        };
-        item.header = _hashHeader(item.n, lastHeader, item.timestamp,
-          item.transactionsRoot, item.receiptsRoot);
+        let item = [ lastBlockN + 1, block.timestamp, block.transactionsRoot,
+          block.receiptsRoot ];
+        item.push(_hashHeader(lastBlockN + 1, lastHeader, block.timestamp,
+          block.transactionsRoot, block.receiptsRoot));
         cache.push(item);
         if (cache.length > 100) {
           // Write chunks of 100, but make sure the cache has at least one value
@@ -74,15 +70,11 @@ exports.loadHeaders = function(startN, endN, fPath, cb) {
           // Save the header if we are in the range of desired values
           headers.push(line[i + 4]);
           lastN = line[i];
-        } else if (line[i] > endN){
-          reader.close();
         }
       }
     } else if (line[0] === 'undefined') {
       // Need to chase down this bug. For now, resyncing seems to work
       _flushFile(fPath); reader.close();
-    } else {
-      reader.close()
     }
   })
   reader.on('close', () => { cb(null, headers, lastN); })
@@ -91,18 +83,10 @@ exports.loadHeaders = function(startN, endN, fPath, cb) {
 function _stringify(data) {
   let s = '';
   data.forEach((d) => {
-    s += `,${d.n},${d.timestamp},${d.transactionsRoot},${d.receiptsRoot},${d.header}`;
+    s += `,${d[0]},${d[1]},${d[2]},${d[3]},${d[4]}`;
   })
   s += '\n';
   return s;
-}
-
-function _zipCache(data) {
-  let c = [];
-  data.forEach((d) => {
-    c.push([ d.n, d.timestamp, d.transactionsRoot, d.receiptsRoot, d.header ]);
-  })
-  return c;
 }
 
 function _zipLineToCache(line) {

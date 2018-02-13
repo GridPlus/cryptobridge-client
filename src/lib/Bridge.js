@@ -78,11 +78,11 @@ class Bridge {
             // messages)
             if (i == 0) {
               this.getBridgeData(this.addrs[0], this.addrs[1], this.clients[0], (err) => {
-                if (err) { logger.log('warn', `ERROR: ${err}`); }
+                if (err) { logger.warn(err); }
               });
             } else {
               this.getBridgeData(this.addrs[1], this.addrs[0], this.clients[1], (err) => {
-                if (err) { logger.log('warn', `ERROR: ${err}`); }
+                if (err) { logger.warn(err); }
               });
             }
             setInterval(() => {
@@ -287,7 +287,6 @@ class Bridge {
       case 'PING':
         this.addPeer(msg.from);
       default:
-        logger.log('info', `Got msg with no type: ${msg}`)
         break;
     }
   }
@@ -348,7 +347,7 @@ class Bridge {
       this.peers[host].send('msg', msg);
     })
     // Grab some peers
-    /*contacted.forEach((p) => {
+    contacted.forEach((p) => {
       if (Object.keys(this.peers).indexOf(p) == -1) {
         const params = p.split(':')
         if (params[0] != this.externalHost && parseInt(params[1]) != parseInt(this.port)) {
@@ -357,7 +356,7 @@ class Bridge {
         }
       }
     })
-    config.addPeers(toAdd, this.datadir, this.index, this.handleAddPeer);*/
+    config.addPeers(toAdd, this.datadir, this.index, this.handleAddPeer);
   }
 
   // Ping peers

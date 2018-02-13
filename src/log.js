@@ -21,3 +21,23 @@ exports.setLogger = function(fPath) {
 exports.getLogger = function() {
   return logger;
 }
+
+// The user can define a specific level for the logger. This enables null logging
+// for test suites
+exports.setLevel = function(level) {
+  switch (level) {
+    case 0:
+      return nullLogger;
+      break;
+    default:
+      return logger;
+  }
+}
+
+
+let nullLogger = {
+  log: () => {},
+  warn: () => {},
+  error: () => {},
+  info: () => {},
+}

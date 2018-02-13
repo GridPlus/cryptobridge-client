@@ -5,8 +5,8 @@ const Promise = require('bluebird').Promise;
 const Log = require('./log');
 
 // Given a list of hosts, form p2p connections with them.
-function connectToPeers(peers, cb, connections=[]) {
-  let logger = Log.getLogger();
+function connectToPeers(peers, cb, connections=[], logging=null) {
+  let logger = logging == undefined? Log.getLogger() : Log.setLevel(logging);
   if (peers.length == 0) { cb(connections); }
   else {
     // Peer stored as e.g. localhost:7545
@@ -31,7 +31,7 @@ function connectToPeers(peers, cb, connections=[]) {
     peer.connect();
     setTimeout(() => {
       if (!disconnected) { connections.push(peer); }
-      connectToPeers(peers, cb, connections);
+      connectToPeers(peers, cb, connections, logging);
     }, 200);
   }
 }

@@ -88,6 +88,9 @@ exports.addPeers = function(peers, dir, index, cb) {
       peers.forEach((peer) => {
         const p = `${peer.host.host}:${peer.host.port}`;
         // Don't add peers already in the list
+        // Remember that peers are stored as host names in the config.json file
+        // but exist as key-value pairs in memory
+        if (!data[index]) { data[index] = { peers: [] }; };
         if (data[index].peers.indexOf(p) == -1) {
           data[index].peers.push(p);
           count ++;
@@ -108,7 +111,7 @@ exports.getPeers = function(dir, index, cb) {
     if (err) { cb(err); }
     else if (!exists) { cb('No peers saved.'); }
     else {
-      _loadPeers(data[index].peers, (err, peers) => {
+      loadPeers(data[index].peers, (err, peers) => {
         if (err) { cb(err); }
         else { cb(null, peers); }
       })
@@ -150,7 +153,7 @@ function _ifExists(path, cb) {
   })
 }
 
-function _loadPeers(hosts, cb, peers={}) {
+function loadPeers(hosts, cb, peers={}) {
   if (hosts.length == 0) { cb(null, peers); }
   else {
     const host = hosts.pop();
@@ -160,6 +163,7 @@ function _loadPeers(hosts, cb, peers={}) {
     peer.on('connect', () => { })
     peer.connect();
     peers[host] = peer;
-    _loadPeers(hosts, cb, peers);
+    loadPeers(hosts, cb, peers);
   }
 }
+exports.loadPeers = loadPeers;

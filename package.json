@@ -4,7 +4,7 @@
   "description": "A p2p client for managing trustless bridges of EVM blockchains",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha test/simplePeerConnections.js && mocha test/parallelPeerTransfer.js && mocha test/totalPeerTransfer.js" 
   },
   "repository": {
     "type": "git",

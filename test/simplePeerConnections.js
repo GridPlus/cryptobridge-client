@@ -27,7 +27,7 @@ let b3;
 let b4;
 const d1 = `${dir}/b1`;
 
-describe('Three peer connections', () => {
+describe('Simple peer connections', () => {
   before(() => {
     const d2 = `${dir}/b2`;
     const d3 = `${dir}/b3`;

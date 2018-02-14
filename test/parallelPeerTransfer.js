@@ -28,7 +28,7 @@ const d2 = `${dir}/b2`;
 const d3 = `${dir}/b3`;
 const d4 = `${dir}/b4`;
 
-describe('Parallel peer connections', () => {
+describe('Parallel peer transfer via two weakly connected bootstrap nodes', () => {
   before(() => {
     const d5 = `${dir}/b5`;
     const d6 = `${dir}/b6`;

@@ -1,10 +1,12 @@
 // Bridge server to manage peer connections, blockchain data, and signatures.
+const externalIp = require('externalIp');
 const net = require('net');
 const fs = require('fs');
 const config = require('../config.js');
 const sync = require('./util/sync.js');
 const bridges = require('./util/bridges.js');
 const merkle = require('./util/merkle.js');
+const networking = require('./util/networking.js');
 const util = require('./util/util.js');
 const Log = require('./../log.js');
 const Peer = require('./Peer.js').Peer;
@@ -16,14 +18,28 @@ let logger;
 // to a particular bridge, which corresponds to two specific networks.
 class Bridge {
   constructor(opts) {
+    // Setup logger and host
     logger = Log.getLogger();
+
     if (!opts) { opts = {}; }
+    this.port = opts.port ? opts.port : 8000;
+    networking.getExternalIp(this.port);
+    externalIp((err, ip) => {
+      if (err) {
+        logger.error(`Could not resolve externalIP: ${err}`);
+        process.exit(1);
+      } else {
+        this.externalHost = ip;
+        logger.info(`Set host to ${this.externalHost}`);
+      }
+    })
+
+
+
     // If the user wants to set a specific logging level (including null)
     logger = opts.logging == undefined ? logger : Log.setLevel(opts.logging);
     this.wallet = opts.wallet ? opts.wallet : new Wallet();
     logger.log('info', `Wallet setup: ${this.wallet.getAddress()}`)
-    this.port = opts.port ? opts.port : 8000;
-    this.externalHost = opts.host ? opts.host : 'localhost';
     this.peers = opts.peers ? opts.peers : {};
     this.clients = opts.clients ? opts.clients : [];
     this.index = opts.index ? opts.index : '';
@@ -50,7 +66,7 @@ class Bridge {
       socket.on('end', () => {
         logger.log('error', 'Server socket connection ended')
       });
-      socket.on('data', (data) => {
+      socket.on('data', (data, stuff) => {
         this.handleMsg(data);
       });
     });
@@ -242,7 +258,7 @@ class Bridge {
 
   // Handle an incoming socket message
   handleMsg(data) {
-    const msg = JSON.parse(data.toString('utf8'));
+    const msg = util.parseRequest(data);
     switch (msg.type) {
       case 'SIGREQ':
         this.verifyProposedRoot(msg.data, (err, sig) => {
@@ -277,11 +293,10 @@ class Bridge {
           }
         })
         break;
-      case 'PEERSREQ':
-        console.log('someone asking for peers list', msg);
-        break;
       case 'PING':
         this.addPeersFromMsg(msg);
+      case 'REJECT':
+        console.log('reject msg', msg);
       default:
         break;
     }

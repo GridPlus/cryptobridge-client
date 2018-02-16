@@ -37,3 +37,20 @@ function deleteFolderRecursive(path) {
   }
 };
 exports.deleteFolderRecursive = deleteFolderRecursive;
+
+exports.parseRequest = function(req) {
+  const data = req.toString('utf8');
+  try {
+    const j = JSON.parse(data);
+    return j;
+  } catch (e) {
+    let msg = { type: 'REJECT' };
+    if (data.indexOf('HTTP/') > 0) {
+      msg.reason = 'Not compatible with HTTP requests.';
+    } else {
+      msg.reason = 'Could not parse your request.';
+    }
+    console.log(msg);
+    return msg;
+  }
+}

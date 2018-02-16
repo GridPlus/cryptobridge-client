@@ -4,7 +4,7 @@
   "description": "A p2p client for managing trustless bridges of EVM blockchains",
   "main": "index.js",
   "scripts": {
-    "test": "mocha test/simplePeerConnections.js && mocha test/parallelPeerTransfer.js && mocha test/totalPeerTransfer.js" 
+    "test": "mocha test/simplePeerConnections.js && mocha test/parallelPeerTransfer.js && mocha test/totalPeerTransfer.js"
   },
   "repository": {
     "type": "git",
@@ -27,9 +27,14 @@
     "ethereumjs-tx": "^1.3.3",
     "ethereumjs-util": "^5.1.3",
     "ethereumjs-wallet": "^0.6.0",
+    "externalip": "^1.0.2",
     "jsonfile": "^4.0.0",
     "left-pad": "^1.2.0",
     "mocha": "^5.0.0",
+    "nat-pmp": "^1.0.0",
+    "nat-upnp": "^1.1.1",
+    "netroute": "^1.0.2",
+    "network": "^0.4.1",
     "p2p-node": "^0.1.1",
     "prompt": "^1.0.0",
     "solidity-sha3": "^0.4.1",
